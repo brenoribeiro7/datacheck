@@ -1,6 +1,6 @@
 # DataCheck
 
-DataCheck is a planned web application for repeatable, explainable CSV data-quality analysis. The repository is currently at the repository-bootstrap and architecture-baseline stage; application code, runtime services, tests, and CI are scheduled for later increments.
+DataCheck is a planned web application for repeatable, explainable CSV data-quality analysis. The repository now contains an executable backend/frontend foundation, local service topology, foundational tests, and initial CI validation. Product workflows remain intentionally unimplemented.
 
 ## Problem
 
@@ -52,7 +52,7 @@ The MVP uses opaque server-side sessions, HttpOnly cookies, CSRF protection, Arg
 
 ## Repository status
 
-Current status: DC-00 repository bootstrap is completed, and DC-01 has not started. No API, functional frontend, database schema or migration, Docker Compose topology, CI workflow, or project test suite exists yet. The 5 GiB release benchmark has not been executed.
+Current status: DC-00 repository bootstrap is completed, and DC-01 is in progress. Executable FastAPI and React/Vite foundations, a local five-service Docker Compose topology, foundational tests, and an initial CI workflow exist. No product API or functional product frontend exists; authentication, datasets, uploads, validation, and analysis behavior have not been implemented. There are no product database tables or migration revisions. The 5 GiB release benchmark has not been executed.
 
 DataCheck is licensed under the MIT License. See [LICENSE](LICENSE).
 
@@ -67,7 +67,7 @@ DataCheck is licensed under the MIT License. See [LICENSE](LICENSE).
 
 ## Roadmap
 
-Delivery is divided into DC-00 through DC-11. DC-00 completed the reproducible repository baseline; DC-01 is the next planned increment, followed by product capabilities, hardening, capacity validation, and release.
+Delivery is divided into DC-00 through DC-11. DC-00 completed the reproducible repository baseline; DC-01 is in progress, followed by product capabilities, hardening, capacity validation, and release.
 
 ## Development prerequisites
 
@@ -78,4 +78,61 @@ Delivery is divided into DC-00 through DC-11. DC-00 completed the reproducible r
 - Node.js 24.19.0
 - pnpm 11.12.0
 
-The version files and manifests are authoritative. Application startup commands do not exist at this stage.
+The version files, manifests, lockfiles, and [stack decision](STACK_DECISION.md) are authoritative.
+
+## Development setup
+
+Create a local environment file from the safe development template, then start the complete topology:
+
+```sh
+cp .env.example .env
+docker compose up --build --wait
+docker compose ps
+```
+
+The local services are available at:
+
+- frontend: <http://127.0.0.1:5173/>;
+- API liveness: <http://127.0.0.1:8000/health>;
+- API readiness: <http://127.0.0.1:8000/ready>;
+- PostgreSQL: `127.0.0.1:5432`;
+- Redis: `127.0.0.1:6379`.
+
+Stop the topology normally with:
+
+```sh
+docker compose down
+```
+
+Normal shutdown preserves the PostgreSQL named volume. `docker compose down -v` deletes the local PostgreSQL and staging volumes and is only appropriate for an explicit local reset.
+
+The example PostgreSQL password is a disposable local placeholder, not production secret management. It remains URL-safe because Compose derives the backend database URL from the local PostgreSQL variables.
+
+## Quality commands
+
+Backend:
+
+```sh
+cd backend
+uv sync --locked
+uv run ruff format --check .
+uv run ruff check .
+uv run mypy datacheck tests
+uv run pytest -m "not integration"
+```
+
+Frontend:
+
+```sh
+cd frontend
+pnpm install --frozen-lockfile
+pnpm typecheck
+pnpm test
+pnpm build
+```
+
+The equivalent aggregate frontend gate is `pnpm check`. The Compose configuration can be checked without starting services:
+
+```sh
+docker compose --env-file .env.example config --quiet
+```
