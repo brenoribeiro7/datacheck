@@ -54,7 +54,7 @@ The MVP uses opaque server-side sessions, HttpOnly cookies, CSRF protection, Arg
 
 Current status: repository bootstrap and architecture baseline. No API, functional frontend, database schema, migration, Compose topology, CI workflow, or project test suite is implemented yet. The 5 GiB release benchmark has not yet been executed.
 
-Licensing will be selected before public release; no license is granted by this repository baseline.
+DataCheck is licensed under the MIT License. See [LICENSE](LICENSE).
 
 ## Documentation
 

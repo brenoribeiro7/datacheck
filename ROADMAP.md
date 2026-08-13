@@ -151,9 +151,9 @@ The increments below are sequential delivery boundaries. Only DC-00 is in progre
 - **Objective:** Prove the release requirement under a documented environment and complete final release review.
 - **Scope:** Synthetic 5 GiB CSV benchmark, resource and duration measurement, upload/processing/results/cleanup validation, failure recovery, production configuration review, documentation accuracy, dependency/security review, and release checklist.
 - **Non-goals:** Hiding failed capacity evidence, changing the 5 GiB requirement without human decision, or adding unrelated features.
-- **Deliverables:** Reproducible benchmark plan and evidence, bottleneck analysis, remediation if required, final architecture/security/operations review, release notes, and licensing decision.
+- **Deliverables:** Reproducible benchmark plan and evidence, bottleneck analysis, remediation if required, final architecture/security/operations review, release notes, and license compliance review.
 - **Acceptance criteria:** A 5 GiB inclusive input completes within approved operational limits with bounded memory/disk behavior, correct results, and confirmed cleanup; recovery cases pass; all release blockers are closed and documentation matches reality.
 - **Testing expectations:** End-to-end benchmark with monitoring, repeated representative runs, constrained-resource and failure scenarios, full automated suite, fresh-environment deployment, and manual security/release review.
 - **Migration implications:** Only evidence-driven performance indexes or schema changes with rehearsal, backup/recovery assessment, and rollback plan.
-- **Risks:** Capacity miss, resource exhaustion, environment-specific results, unsafe cleanup under load, or unresolved licensing/security issues.
+- **Risks:** Capacity miss, resource exhaustion, environment-specific results, unsafe cleanup under load, or unresolved license-compliance/security issues.
 - **Dependencies:** DC-10 hardening and all earlier acceptance criteria.
