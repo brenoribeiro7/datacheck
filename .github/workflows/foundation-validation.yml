@@ -1,0 +1,307 @@
+name: Foundation validation
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-quality:
+    name: Backend quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up uv and Python
+        uses: astral-sh/setup-uv@ae62891fec2bb8e7d6c99fc78c9fec3a63790f8d # v10.0.0
+        with:
+          version: 0.12.3
+          python-version: 3.13.15
+          working-directory: backend
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install locked backend dependencies
+        run: uv sync --locked
+
+      - name: Verify backend toolchain
+        run: |
+          uv --version | grep -Eq '^uv 0[.]12[.]3( |$)'
+          test "$(uv run python -c 'import platform; print(platform.python_version())')" = "3.13.15"
+
+      - name: Check backend formatting
+        run: uv run ruff format --check .
+
+      - name: Lint backend
+        run: uv run ruff check .
+
+      - name: Type-check backend
+        run: uv run mypy datacheck tests
+
+      - name: Run backend unit tests
+        run: uv run pytest -m "not integration"
+
+  backend-integration:
+    name: Backend integration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      DATACHECK_ENVIRONMENT: test
+      DATACHECK_DATABASE_URL: postgresql+psycopg://datacheck:datacheck-ci-local@127.0.0.1:5432/datacheck
+      DATACHECK_CELERY_BROKER_URL: redis://127.0.0.1:6379/0
+    services:
+      postgres:
+        image: postgres:18.4-bookworm@sha256:882236b897e39051d2368c5ccc6cda944904723506b2dfc97f2a8f5bc9afa382
+        env:
+          POSTGRES_DB: datacheck
+          POSTGRES_USER: datacheck
+          POSTGRES_PASSWORD: datacheck-ci-local
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U datacheck -d datacheck"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+      redis:
+        image: redis:8.10.0-trixie@sha256:344e3945a0b431c8ff1eecd58c5573538126bd756f02fc7e218ddf1fc2546366
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up uv and Python
+        uses: astral-sh/setup-uv@ae62891fec2bb8e7d6c99fc78c9fec3a63790f8d # v10.0.0
+        with:
+          version: 0.12.3
+          python-version: 3.13.15
+          working-directory: backend
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install locked backend dependencies
+        run: uv sync --locked
+
+      - name: Verify backend toolchain
+        run: |
+          uv --version | grep -Eq '^uv 0[.]12[.]3( |$)'
+          test "$(uv run python -c 'import platform; print(platform.python_version())')" = "3.13.15"
+
+      - name: Run PostgreSQL integration tests
+        run: uv run pytest -m integration
+
+      - name: Inspect Alembic heads
+        run: uv run alembic heads
+
+      - name: Upgrade database to Alembic head
+        run: uv run alembic upgrade head
+
+      - name: Check Alembic model drift
+        run: uv run alembic check
+
+      - name: Confirm absence of product tables
+        run: |
+          uv run python - <<'PY'
+          import os
+
+          from sqlalchemy import create_engine, inspect
+
+          engine = create_engine(os.environ["DATACHECK_DATABASE_URL"])
+          try:
+              tables = set(inspect(engine).get_table_names())
+              unexpected = tables - {"alembic_version"}
+              if unexpected:
+                  raise SystemExit(f"Unexpected product tables: {sorted(unexpected)}")
+              print("No product tables found.")
+          finally:
+              engine.dispose()
+          PY
+
+      - name: Smoke-test Celery worker
+        run: |
+          set -euo pipefail
+          uv run celery --app datacheck.infrastructure.celery:celery_app worker \
+            --hostname ci-worker@datacheck --loglevel INFO \
+            >"${RUNNER_TEMP}/datacheck-celery.log" 2>&1 &
+          worker_pid=$!
+          cleanup() {
+            kill "${worker_pid}" 2>/dev/null || true
+            wait "${worker_pid}" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          ready=false
+          for _ in $(seq 1 30); do
+            response="$(uv run celery --app datacheck.infrastructure.celery:celery_app \
+              inspect ping --destination ci-worker@datacheck --timeout 2 2>&1 || true)"
+            if grep -q "pong" <<<"${response}"; then
+              printf '%s\n' "${response}"
+              ready=true
+              break
+            fi
+            if ! kill -0 "${worker_pid}" 2>/dev/null; then
+              cat "${RUNNER_TEMP}/datacheck-celery.log"
+              exit 1
+            fi
+            sleep 1
+          done
+          if [[ "${ready}" != true ]]; then
+            cat "${RUNNER_TEMP}/datacheck-celery.log"
+            exit 1
+          fi
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.19.0
+          package-manager-cache: false
+
+      - name: Set up pnpm
+        run: |
+          corepack enable
+          corepack install --global pnpm@11.12.0
+          test "$(node --version)" = "v24.19.0"
+          test "$(pnpm --version)" = "11.12.0"
+
+      - name: Install frozen frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type-check frontend
+        run: pnpm typecheck
+
+      - name: Test frontend
+        run: pnpm test
+
+      - name: Build frontend
+        run: pnpm build
+
+  compose-smoke:
+    name: Compose smoke
+    needs:
+      - backend-quality
+      - backend-integration
+      - frontend
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Inspect Docker toolchain
+        run: |
+          docker version --format 'Docker client={{.Client.Version}} server={{.Server.Version}}'
+          docker compose version
+
+      - name: Validate Compose configuration
+        run: docker compose -p datacheck-ci --env-file .env.example config --quiet
+
+      - name: Validate frontend Docker build target
+        run: >-
+          docker build
+          --target build-validation
+          --tag datacheck-frontend-build-validation:ci
+          --file frontend/Dockerfile
+          frontend
+
+      - name: Start Compose topology
+        run: docker compose -p datacheck-ci --env-file .env.example up --build --wait
+
+      - name: Inspect service state
+        run: docker compose -p datacheck-ci --env-file .env.example ps
+
+      - name: Validate HTTP and broker boundaries
+        run: |
+          test "$(curl --fail --silent --show-error http://127.0.0.1:8000/health)" = '{"status":"ok"}'
+          test "$(curl --fail --silent --show-error http://127.0.0.1:8000/ready)" = '{"status":"ready"}'
+          curl --fail --silent --show-error --output /dev/null http://127.0.0.1:5173/
+          test "$(docker compose -p datacheck-ci --env-file .env.example \
+            exec -T redis redis-cli ping | tr -d '\r')" = "PONG"
+          docker compose -p datacheck-ci --env-file .env.example exec -T worker \
+            celery --app datacheck.infrastructure.celery:celery_app \
+            inspect ping --destination worker@datacheck --timeout 10 | grep -q "pong"
+
+      - name: Validate shared staging volume
+        run: |
+          docker compose -p datacheck-ci --env-file .env.example exec -T api \
+            sh -c 'umask 077; printf ci-shared-staging > /var/lib/datacheck/staging/.ci-smoke'
+          test "$(docker compose -p datacheck-ci --env-file .env.example exec -T worker \
+            cat /var/lib/datacheck/staging/.ci-smoke)" = "ci-shared-staging"
+          docker compose -p datacheck-ci --env-file .env.example exec -T worker \
+            rm -- /var/lib/datacheck/staging/.ci-smoke
+
+      - name: Validate negative readiness behavior
+        run: |
+          docker compose -p datacheck-ci --env-file .env.example stop postgres
+          test "$(curl --fail --silent --show-error http://127.0.0.1:8000/health)" = '{"status":"ok"}'
+          status="$(curl --silent --show-error --output "${RUNNER_TEMP}/ready.json" \
+            --write-out '%{http_code}' http://127.0.0.1:8000/ready)"
+          test "${status}" = "503"
+          test "$(cat "${RUNNER_TEMP}/ready.json")" = '{"status":"unavailable"}'
+          docker compose -p datacheck-ci --env-file .env.example up -d --wait postgres
+          test "$(curl --fail --silent --show-error http://127.0.0.1:8000/ready)" = '{"status":"ready"}'
+
+      - name: Validate PostgreSQL volume persistence
+        run: |
+          docker compose -p datacheck-ci --env-file .env.example exec -T postgres \
+            sh -c 'umask 077; printf ci-postgres-persistence > /var/lib/postgresql/.ci-persistence'
+          docker compose -p datacheck-ci --env-file .env.example \
+            exec -T postgres test -f /var/lib/postgresql/.ci-persistence
+          docker compose -p datacheck-ci --env-file .env.example down
+          docker compose -p datacheck-ci --env-file .env.example up -d --wait
+          test "$(docker compose -p datacheck-ci --env-file .env.example exec -T postgres \
+            cat /var/lib/postgresql/.ci-persistence)" = "ci-postgres-persistence"
+          docker compose -p datacheck-ci --env-file .env.example exec -T postgres \
+            rm -- /var/lib/postgresql/.ci-persistence
+          test "$(curl --fail --silent --show-error http://127.0.0.1:8000/ready)" = '{"status":"ready"}'
+
+      - name: Clean up Compose topology
+        if: always()
+        run: >-
+          docker compose
+          -p datacheck-ci
+          --env-file .env.example
+          down -v --remove-orphans
