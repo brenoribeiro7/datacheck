@@ -52,7 +52,7 @@ The MVP uses opaque server-side sessions, HttpOnly cookies, CSRF protection, Arg
 
 ## Repository status
 
-Current status: repository bootstrap and architecture baseline. No API, functional frontend, database schema, migration, Compose topology, CI workflow, or project test suite is implemented yet. The 5 GiB release benchmark has not yet been executed.
+Current status: DC-00 repository bootstrap is completed, and DC-01 has not started. No API, functional frontend, database schema or migration, Docker Compose topology, CI workflow, or project test suite exists yet. The 5 GiB release benchmark has not been executed.
 
 DataCheck is licensed under the MIT License. See [LICENSE](LICENSE).
 
@@ -67,7 +67,7 @@ DataCheck is licensed under the MIT License. See [LICENSE](LICENSE).
 
 ## Roadmap
 
-Delivery is divided into DC-00 through DC-11. DC-00 establishes this reproducible baseline; executable foundation, product capabilities, hardening, capacity validation, and release follow in later increments.
+Delivery is divided into DC-00 through DC-11. DC-00 completed the reproducible repository baseline; DC-01 is the next planned increment, followed by product capabilities, hardening, capacity validation, and release.
 
 ## Development prerequisites
 

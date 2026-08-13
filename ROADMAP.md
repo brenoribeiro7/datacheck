@@ -1,16 +1,16 @@
 # DataCheck Roadmap
 
-The increments below are sequential delivery boundaries. Only DC-00 is in progress; every later increment is planned and must satisfy its own acceptance evidence before status changes.
+The increments below are sequential delivery boundaries. DC-00 is completed; DC-01 through DC-11 remain planned and require their own acceptance evidence before status changes.
 
 ## DC-00 — Bootstrap Greenfield
 
-- **Status:** In progress
+- **Status:** Completed
 - **Objective:** Establish a clean, reproducible local repository and approved engineering baseline.
-- **Scope:** Git repository on `main`; product, architecture, stack, roadmap, and decision documentation; exact backend and frontend manifests and lockfiles; runtime version files; dependency compatibility and Celery/Redis smoke validation.
-- **Non-goals:** Application source, database schema, migrations, Compose configuration, CI, endpoints, screens, and remote publication.
-- **Deliverables:** Bootstrap file structure, locked dependency graphs, working agreement, four ADRs, verified infrastructure image references, and one local initial commit.
-- **Acceptance criteria:** Exact toolchain and direct versions resolve; locked/frozen installs do not rewrite lockfiles; actual Celery task completes through Redis 8.10.0; tracked content passes security and consistency review; repository is clean on `main` with no remote or tag.
-- **Testing expectations:** Dependency import/version checks, lockfile reproducibility, document consistency scan, public-content review, and isolated Celery/Redis task smoke.
+- **Scope:** Git repository on `main`; public GitHub baseline; product, architecture, stack, roadmap, working-agreement, and ADR documentation; exact backend and frontend manifests and lockfiles; runtime version files; dependency compatibility and Celery/Redis smoke validation; MIT License; and initial publication to the approved repository.
+- **Non-goals:** Application source, product functionality, database schema, migrations, Compose configuration, CI, endpoints, screens, releases, and tags.
+- **Deliverables:** Bootstrap structure, locked dependency graphs, documentation baseline, four ADRs, verified infrastructure image references, MIT License, and the public `main` baseline at `brenoribeiro7/datacheck`.
+- **Acceptance criteria:** Exact toolchain and direct versions resolve; locked/frozen installs are reproducible; an actual Celery task completes through Redis 8.10.0; tracked content passes security and neutrality review; the MIT License is present; the public repository exists at `brenoribeiro7/datacheck` with `main` as its default branch; local `main` and `origin/main` align at the approved baseline; and no unexpected bootstrap tags, releases, or branches exist.
+- **Testing expectations:** Dependency import/version checks, lockfile reproducibility, document consistency and public-content review, isolated Celery/Redis task smoke, and concise post-publication remote audit.
 - **Migration implications:** None; no schema exists.
 - **Risks:** Version-resolution conflict, infrastructure compatibility failure, or documentation that overstates current implementation.
 - **Dependencies:** Approved DC-00B0 version closure and successful Greenfield preflight.
