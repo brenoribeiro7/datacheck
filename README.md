@@ -52,7 +52,7 @@ The MVP uses opaque server-side sessions, HttpOnly cookies, CSRF protection, Arg
 
 ## Repository status
 
-Current status: DC-00 repository bootstrap is completed, and DC-01 is in progress. Executable FastAPI and React/Vite foundations, a local five-service Docker Compose topology, foundational tests, and an initial CI workflow exist. No product API or functional product frontend exists; authentication, datasets, uploads, validation, and analysis behavior have not been implemented. There are no product database tables or migration revisions. The 5 GiB release benchmark has not been executed.
+Current status: DC-00 repository bootstrap and the DC-01 executable foundation are completed; DC-02 has not started. Executable FastAPI and React/Vite foundations, a local five-service Docker Compose topology, foundational tests, and an initial CI workflow exist. No product API or functional product frontend exists; authentication, datasets, uploads, validation, and analysis behavior have not been implemented. There are no product database tables or migration revisions. The 5 GiB release benchmark has not been executed.
 
 DataCheck is licensed under the MIT License. See [LICENSE](LICENSE).
 
@@ -67,7 +67,7 @@ DataCheck is licensed under the MIT License. See [LICENSE](LICENSE).
 
 ## Roadmap
 
-Delivery is divided into DC-00 through DC-11. DC-00 completed the reproducible repository baseline; DC-01 is in progress, followed by product capabilities, hardening, capacity validation, and release.
+Delivery is divided into DC-00 through DC-11. DC-00 and DC-01 are completed; DC-02 is the next planned increment, followed by product capabilities, hardening, capacity validation, and release.
 
 ## Development prerequisites
 

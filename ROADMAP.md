@@ -1,6 +1,6 @@
 # DataCheck Roadmap
 
-The increments below are sequential delivery boundaries. DC-00 is completed; DC-01 is in progress; DC-02 through DC-11 remain planned and require their own acceptance evidence before status changes.
+The increments below are sequential delivery boundaries. DC-00 and DC-01 are completed; DC-02 through DC-11 remain planned and require their own acceptance evidence before status changes.
 
 ## DC-00 — Bootstrap Greenfield
 
@@ -17,7 +17,7 @@ The increments below are sequential delivery boundaries. DC-00 is completed; DC-
 
 ## DC-01 — Executable foundation and CI
 
-- **Status:** In progress
+- **Status:** Completed
 - **Objective:** Create the smallest executable backend/frontend foundation and repeatable local/CI verification.
 - **Scope:** FastAPI and React/Vite application skeletons, health checks, module boundaries, configuration loading, Docker Compose for PostgreSQL/Redis/backend/worker/frontend as justified, baseline test/lint/typecheck/build commands, and GitHub Actions after publication approval.
 - **Non-goals:** User identity, datasets, uploads, rule evaluation, or product screens beyond a foundation shell.

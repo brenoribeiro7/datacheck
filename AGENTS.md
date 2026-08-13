@@ -2,7 +2,7 @@
 
 ## Purpose and current phase
 
-DataCheck is a browser-based, explainable CSV data-quality product for Data Analysts and Data Engineers. DC-00 is complete, and DC-01 is establishing the executable foundation. Backend and frontend shells, foundational tests, a local five-service Compose topology, and the initial CI workflow exist; product functionality does not.
+DataCheck is a browser-based, explainable CSV data-quality product for Data Analysts and Data Engineers. DC-00 and the DC-01 executable foundation are complete; DC-02 remains planned and has not started. Backend and frontend shells, foundational tests, a local five-service Compose topology, and the initial CI workflow exist; product functionality does not.
 
 ## Approved stack
 
