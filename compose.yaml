@@ -1,0 +1,98 @@
+services:
+  postgres:
+    image: postgres:18.4-bookworm@sha256:882236b897e39051d2368c5ccc6cda944904723506b2dfc97f2a8f5bc9afa382
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB must be set}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER must be set}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+    ports:
+      - "127.0.0.1:${DATACHECK_POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  redis:
+    image: redis:8.10.0-trixie@sha256:344e3945a0b431c8ff1eecd58c5573538126bd756f02fc7e218ddf1fc2546366
+    ports:
+      - "127.0.0.1:${DATACHECK_REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+
+  api:
+    image: datacheck-backend:local
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: runtime
+    environment:
+      DATACHECK_ENVIRONMENT: development
+      DATACHECK_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    command: ["uvicorn", "datacheck.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - "127.0.0.1:${DATACHECK_API_PORT:-8000}:8000"
+    volumes:
+      - staging-data:/var/lib/datacheck/staging
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=5).close()"]
+      interval: 5s
+      timeout: 6s
+      retries: 12
+      start_period: 10s
+
+  worker:
+    image: datacheck-backend:local
+    environment:
+      DATACHECK_ENVIRONMENT: development
+      DATACHECK_CELERY_BROKER_URL: redis://redis:6379/0
+    command:
+      - celery
+      - --app
+      - datacheck.infrastructure.celery:celery_app
+      - worker
+      - --hostname
+      - worker@datacheck
+      - --loglevel
+      - INFO
+    volumes:
+      - staging-data:/var/lib/datacheck/staging
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "celery", "--app", "datacheck.infrastructure.celery:celery_app", "inspect", "ping", "--destination", "worker@datacheck", "--timeout", "5"]
+      interval: 10s
+      timeout: 8s
+      retries: 8
+      start_period: 20s
+
+  frontend:
+    image: datacheck-frontend:local
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: development
+    command: ["pnpm", "dev", "--host", "0.0.0.0", "--port", "5173", "--strictPort"]
+    ports:
+      - "127.0.0.1:${DATACHECK_FRONTEND_PORT:-5173}:5173"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5173/').then((response) => { if (!response.ok) process.exit(1) }).catch(() => process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+volumes:
+  postgres-data:
+  staging-data:

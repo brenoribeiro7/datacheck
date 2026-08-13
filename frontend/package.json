@@ -2,10 +2,19 @@
   "name": "datacheck-web",
   "version": "0.0.0",
   "private": true,
+  "type": "module",
   "packageManager": "pnpm@11.12.0",
   "engines": {
     "node": ">=24.0.0 <25.0.0",
     "pnpm": "11.12.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "typecheck": "tsc -b --pretty false",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "build": "tsc -b && vite build",
+    "check": "pnpm typecheck && pnpm test && pnpm build"
   },
   "dependencies": {
     "react": "19.2.8",

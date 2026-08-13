@@ -1,6 +1,6 @@
 # DataCheck Roadmap
 
-The increments below are sequential delivery boundaries. DC-00 is completed; DC-01 through DC-11 remain planned and require their own acceptance evidence before status changes.
+The increments below are sequential delivery boundaries. DC-00 and DC-01 are completed; DC-02 through DC-11 remain planned and require their own acceptance evidence before status changes.
 
 ## DC-00 — Bootstrap Greenfield
 
@@ -17,14 +17,14 @@ The increments below are sequential delivery boundaries. DC-00 is completed; DC-
 
 ## DC-01 — Executable foundation and CI
 
-- **Status:** Planned
+- **Status:** Completed
 - **Objective:** Create the smallest executable backend/frontend foundation and repeatable local/CI verification.
 - **Scope:** FastAPI and React/Vite application skeletons, health checks, module boundaries, configuration loading, Docker Compose for PostgreSQL/Redis/backend/worker/frontend as justified, baseline test/lint/typecheck/build commands, and GitHub Actions after publication approval.
 - **Non-goals:** User identity, datasets, uploads, rule evaluation, or product screens beyond a foundation shell.
 - **Deliverables:** Runnable development topology, validated commands, initial CI workflow, configuration examples without secrets, and contributor setup documentation.
 - **Acceptance criteria:** Fresh locked installs succeed; services start predictably; health checks pass; CI runs formatting/lint/type/test/build foundations; no product behavior is implied.
 - **Testing expectations:** Startup and health integration checks, configuration-failure tests, frontend smoke test, and CI parity with documented local commands.
-- **Migration implications:** Establish Alembic environment and an empty or explicitly minimal baseline only if required; no product tables.
+- **Migration implications:** The Alembic environment is established with zero product revisions and no product tables.
 - **Risks:** Environment drift, slow container feedback, accidental coupling, or secrets in configuration.
 - **Dependencies:** DC-00 completed and version matrix approved.
 

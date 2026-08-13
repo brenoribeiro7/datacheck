@@ -1,6 +1,6 @@
 # DataCheck Stack Decision
 
-Status: Approved baseline for repository bootstrap
+Status: Approved implementation baseline
 
 Primary track: Hybrid Architecture
 
@@ -60,6 +60,15 @@ This document is the source of truth for the approved technology and version bas
 | Redis Server | 8.10.0 | `redis:8.10.0-trixie@sha256:344e3945a0b431c8ff1eecd58c5573538126bd756f02fc7e218ddf1fc2546366` |
 
 PostgreSQL 18 uses the current official-image data layout. Future persistent storage must mount at `/var/lib/postgresql`; older recipes that mount only `/var/lib/postgresql/data` must not be copied without review.
+
+## Application container bases
+
+| Runtime | Purpose | Fixed base image reference |
+|---|---|---|
+| Python 3.13.15 | API and worker | `python:3.13.15-slim-bookworm@sha256:00faa2debb87529f9f0764e9491d8ba400a3678976616c3bd7cb193745ac20d1` |
+| Node.js 24.19.0 | Frontend development and build validation | `node:24.19.0-bookworm-slim@sha256:3638d9a6fe4030bd716be989438248074489337ba3275657f93595428be4fc03` |
+
+The tags and repository digests were revalidated before the backend and frontend images were built successfully. These references are the application bases for the local topology. The resulting `datacheck-backend:local` and `datacheck-frontend:local` images are local build outputs, not release or published images.
 
 ## Compatibility decisions
 
