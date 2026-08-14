@@ -4,6 +4,7 @@ from sqlalchemy import engine_from_config, pool
 
 from alembic import context
 from datacheck.core.settings import ApiSettings
+from datacheck.identity import models as identity_models
 from datacheck.infrastructure.database import Base
 
 config = context.config
@@ -11,8 +12,9 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# The metadata is intentionally empty in DC-01. Establishing it here gives future
-# product migrations one authoritative schema boundary without creating fake tables.
+# Importing the concrete mappings registers their tables on the authoritative metadata
+# without opening a database connection or loading runtime settings.
+_identity_tables = (identity_models.User.__table__, identity_models.UserSession.__table__)
 target_metadata = Base.metadata
 
 
