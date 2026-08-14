@@ -58,6 +58,7 @@ class UserReference:
     user_id: uuid.UUID
     email: str
     created_at: datetime
+    updated_at: datetime
 
 
 @dataclass(frozen=True, slots=True)
@@ -126,7 +127,12 @@ class IdentityService:
             raise
 
         result = SessionIssuance(
-            user=UserReference(user_id=user.id, email=user.email, created_at=user.created_at),
+            user=UserReference(
+                user_id=user.id,
+                email=user.email,
+                created_at=user.created_at,
+                updated_at=user.updated_at,
+            ),
             session_id=material.row.id,
             bearer_token=material.bearer_token,
             csrf_token=material.csrf_token,
@@ -178,6 +184,7 @@ class IdentityService:
                 user_id=user.id,
                 email=user.email,
                 created_at=user.created_at,
+                updated_at=user.updated_at,
             )
 
         result = SessionIssuance(
@@ -215,6 +222,7 @@ class IdentityService:
                     user_id=user.user_id,
                     email=user.email,
                     created_at=user.created_at,
+                    updated_at=user.updated_at,
                 ),
                 session_id=active_session.session_id,
                 csrf_token=active_session.csrf_token,

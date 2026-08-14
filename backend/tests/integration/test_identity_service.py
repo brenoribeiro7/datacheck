@@ -133,6 +133,8 @@ def test_registration_is_atomic_and_persists_only_token_hash(
         assert user.email == "Person@example.test"
         assert user.email_normalized == "person@example.test"
         assert user_session.user_id == user.id == result.user.user_id
+        assert result.user.created_at == user.created_at == _NOW
+        assert result.user.updated_at == user.updated_at == _NOW
         assert user_session.token_hash == hash_session_token(decode_token(result.bearer_token))
         assert user_session.csrf_token == decode_token(result.csrf_token)
         assert user_session.absolute_expires_at - user_session.created_at == ABSOLUTE_TIMEOUT
@@ -181,6 +183,11 @@ def test_login_issues_independent_session_and_failure_paths_create_none(
     assert login.bearer_token != registration.bearer_token
     with identity_database.session_factory() as database_session:
         assert database_session.scalar(select(func.count()).select_from(UserSession)) == 2
+        stored_updated_at = database_session.scalar(
+            select(User.updated_at).where(User.id == registration.user.user_id)
+        )
+        assert stored_updated_at == registration.user.updated_at
+        assert login.user.updated_at == stored_updated_at
 
     with pytest.raises(InvalidCredentials):
         service.login(email="login@example.test", password="wrong-password-1")
@@ -216,7 +223,7 @@ def test_login_rehashes_password_with_session_in_same_write_phase(
     clock.current = _NOW + timedelta(hours=1)
     current_passwords = _password_service(time_cost=2)
     login_service = _service(identity_database, clock, password_service=current_passwords)
-    login_service.login(email="rehash@example.test", password=_PASSWORD)
+    login = login_service.login(email="rehash@example.test", password=_PASSWORD)
 
     with identity_database.session_factory() as database_session:
         user = database_session.get(User, registration.user.user_id)
@@ -225,6 +232,7 @@ def test_login_rehashes_password_with_session_in_same_write_phase(
         assert current_passwords.verify(user.password_hash, _PASSWORD) is PasswordVerification.MATCH
         assert current_passwords.check_needs_rehash(user.password_hash) is False
         assert user.updated_at == clock.current
+        assert login.user.updated_at == user.updated_at
         assert database_session.scalar(select(func.count()).select_from(UserSession)) == 2
 
 
@@ -289,7 +297,12 @@ def test_authentication_touches_active_session_and_rejects_unknown_or_malformed(
     assert context.session_id == session_id
     assert context.csrf_token == csrf
     with identity_database.session_factory() as database_session:
-        assert database_session.get(UserSession, session_id).last_seen_at == _NOW  # type: ignore[union-attr]
+        user_session = database_session.get(UserSession, session_id)
+        assert user_session is not None
+        user = database_session.get(User, user_session.user_id)
+        assert user is not None
+        assert user_session.last_seen_at == _NOW
+        assert context.user.updated_at == user.updated_at
     with pytest.raises(AuthenticationRequired):
         service.authenticate(encode_token(generate_token_bytes()))
     with pytest.raises(AuthenticationRequired):

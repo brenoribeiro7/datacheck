@@ -19,6 +19,7 @@ class UserPublicSnapshot:
     user_id: uuid.UUID
     email: str
     created_at: datetime
+    updated_at: datetime
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,11 +53,18 @@ class UserRepository:
         return self._session.execute(statement).scalar_one_or_none()
 
     def get_public(self, user_id: uuid.UUID) -> UserPublicSnapshot | None:
-        statement = select(User.id, User.email, User.created_at).where(User.id == user_id)
+        statement = select(User.id, User.email, User.created_at, User.updated_at).where(
+            User.id == user_id
+        )
         row = self._session.execute(statement).one_or_none()
         if row is None:
             return None
-        return UserPublicSnapshot(user_id=row.id, email=row.email, created_at=row.created_at)
+        return UserPublicSnapshot(
+            user_id=row.id,
+            email=row.email,
+            created_at=row.created_at,
+            updated_at=row.updated_at,
+        )
 
 
 class SessionRepository:

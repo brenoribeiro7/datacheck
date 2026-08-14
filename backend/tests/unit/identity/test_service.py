@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Callable
 from contextlib import AbstractContextManager
+from dataclasses import fields
 from datetime import UTC, datetime, timedelta
 from types import TracebackType
 from typing import Any, Literal, Self, cast
@@ -192,6 +193,17 @@ def test_registration_prepares_credentials_before_transaction_and_commits_fresh_
     assert len(passwords.hash_inputs) == 2  # one process-lifetime dummy plus registration
     assert users[0].email == "Person@example.test"
     assert users[0].email_normalized == "person@example.test"
+    assert result.user.user_id == users[0].id
+    assert result.user.email == users[0].email
+    assert result.user.created_at == _NOW
+    assert result.user.updated_at == _NOW
+    assert result.user.created_at == result.user.updated_at
+    assert {item.name for item in fields(result.user)} == {
+        "user_id",
+        "email",
+        "created_at",
+        "updated_at",
+    }
     assert sessions[0].user_id == users[0].id
     assert sessions[0].token_hash == hash_session_token(decode_token(result.bearer_token))
     assert sessions[0].csrf_token == decode_token(result.csrf_token)
@@ -328,9 +340,40 @@ def test_login_rehashes_outside_transaction_and_issues_fresh_session(
     assert passwords.verify_inputs == [("verified-hash", _PASSWORD)]
     assert user.password_hash == "probe-hash-2"
     assert user.updated_at == _NOW
+    assert result.user.updated_at == _NOW
     assert added_sessions[0].id == result.session_id
     assert added_sessions[0].token_hash == hash_session_token(decode_token(result.bearer_token))
     assert factory.transaction_active is False
+
+
+def test_login_without_rehash_preserves_public_updated_at(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    factory = _FakeFactory()
+    stored_updated_at = _NOW - timedelta(days=1)
+    user = User(
+        id=uuid.uuid4(),
+        email="person@example.test",
+        email_normalized="person@example.test",
+        password_hash="verified-hash",
+        created_at=stored_updated_at,
+        updated_at=stored_updated_at,
+    )
+    snapshot = UserCredentialSnapshot(user_id=user.id, password_hash=user.password_hash)
+    monkeypatch.setattr(
+        UserRepository,
+        "get_credentials_by_email",
+        lambda _self, _email: snapshot,
+    )
+    monkeypatch.setattr(UserRepository, "get_for_update", lambda _self, _id: user)
+    monkeypatch.setattr(SessionRepository, "add", lambda _self, _session: None)
+    monkeypatch.setattr(SessionRepository, "delete_inactive_batch", lambda _self, **_kwargs: 0)
+    service, _ = _service(factory)
+
+    result = service.login(email=user.email, password=_PASSWORD)
+
+    assert result.user.updated_at == stored_updated_at
+    assert user.updated_at == stored_updated_at
 
 
 def test_stale_verified_hash_does_not_create_session(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -391,6 +434,7 @@ def test_authenticate_returns_public_context_and_converges_malformed_tokens(
             user_id=user_id,
             email="person@example.test",
             created_at=_NOW - timedelta(days=1),
+            updated_at=_NOW - timedelta(hours=1),
         ),
     )
 
@@ -398,8 +442,10 @@ def test_authenticate_returns_public_context_and_converges_malformed_tokens(
 
     assert context.session_id == session_id
     assert context.user.email == "person@example.test"
+    assert context.user.updated_at == _NOW - timedelta(hours=1)
     assert "password" not in repr(context)
     assert "token_hash" not in repr(context)
+    assert "bearer" not in repr(context)
     with pytest.raises(AuthenticationRequired):
         service.authenticate("malformed")
     with pytest.raises(AuthenticationRequired):
