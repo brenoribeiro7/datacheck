@@ -70,7 +70,7 @@ jobs:
       DATACHECK_ENVIRONMENT: test
       DATACHECK_DATABASE_URL: postgresql+psycopg://datacheck:datacheck-ci-local@127.0.0.1:5432/datacheck
       DATACHECK_TRUSTED_ORIGINS: '["http://localhost:3000"]'
-      DATACHECK_DATASET_STORAGE_ROOT: ${{ runner.temp }}/datacheck-datasets
+      DATACHECK_DATASET_STORAGE_ROOT: /tmp/datacheck-datasets
       DATACHECK_CELERY_BROKER_URL: redis://127.0.0.1:6379/0
     services:
       postgres:
