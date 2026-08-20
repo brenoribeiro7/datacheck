@@ -3,6 +3,7 @@ from typing import Annotated, cast
 from fastapi import Depends, Request, Security
 from fastapi.security import APIKeyCookie
 
+from datacheck.analysis.service import AnalysisService
 from datacheck.api.errors import ApiError
 from datacheck.api.security import (
     cookie_policy,
@@ -46,6 +47,13 @@ def get_dataset_service(request: Request) -> DatasetService:
     if service is None:
         raise RuntimeError("dataset service is unavailable")
     return cast(DatasetService, service)
+
+
+def get_analysis_service(request: Request) -> AnalysisService:
+    service = getattr(request.app.state, "analysis_service", None)
+    if service is None:
+        raise RuntimeError("analysis service is unavailable")
+    return cast(AnalysisService, service)
 
 
 def enforce_trusted_origin(

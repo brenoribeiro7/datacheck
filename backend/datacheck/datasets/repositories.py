@@ -74,6 +74,15 @@ class ValidationRuleRepository:
         )
         return list(self._session.scalars(statement))
 
+    def list_all_for_dataset(self, dataset_id: uuid.UUID) -> list[ValidationRule]:
+        """Return the complete ordered rule set for an analysis snapshot."""
+        statement = (
+            select(ValidationRule)
+            .where(ValidationRule.dataset_id == dataset_id)
+            .order_by(ValidationRule.created_at, ValidationRule.id)
+        )
+        return list(self._session.scalars(statement))
+
     def get(self, *, dataset_id: uuid.UUID, rule_id: uuid.UUID) -> ValidationRule | None:
         statement = select(ValidationRule).where(
             ValidationRule.id == rule_id,

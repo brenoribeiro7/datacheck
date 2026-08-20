@@ -130,7 +130,7 @@ jobs:
       - name: Check Alembic model drift
         run: uv run alembic check
 
-      - name: Confirm DC-03 product tables
+      - name: Confirm current product tables
         run: |
           uv run python - <<'PY'
           import os
@@ -142,16 +142,18 @@ jobs:
               tables = set(inspect(engine).get_table_names())
               expected = {
                   "alembic_version",
+                  "analyses",
                   "datasets",
                   "sessions",
                   "users",
+                  "validation_results",
                   "validation_rules",
               }
               if tables != expected:
                   raise SystemExit(
                       f"Unexpected schema: expected {sorted(expected)}, found {sorted(tables)}"
                   )
-              print("DC-03 product tables found.")
+              print("Current product tables found.")
           finally:
               engine.dispose()
           PY

@@ -208,6 +208,66 @@ def test_openapi_generation_describes_the_dc03_contract() -> None:
     }
 
 
+def test_openapi_generation_describes_the_dc05_analysis_contract() -> None:
+    application = create_app(settings=_settings(), database_probe=lambda: None)
+
+    schema = application.openapi()
+    paths = schema["paths"]
+    collection = paths["/api/v1/datasets/{dataset_id}/analyses"]
+    detail = paths["/api/v1/datasets/{dataset_id}/analyses/{analysis_id}"]
+    cookie_security: list[dict[str, list[str]]] = [
+        {"DevelopmentSessionCookie": []},
+        {"ProductionSessionCookie": []},
+    ]
+
+    assert collection["post"]["security"] == cookie_security
+    assert collection["get"]["security"] == cookie_security
+    assert detail["get"]["security"] == cookie_security
+    csrf = next(
+        parameter
+        for parameter in collection["post"]["parameters"]
+        if parameter["name"] == "X-CSRF-Token"
+    )
+    assert csrf["in"] == "header" and csrf["required"] is True
+    assert "requestBody" not in collection["post"]
+    assert set(collection["post"]["responses"]) == {
+        "201",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422",
+        "500",
+        "503",
+    }
+    assert set(collection["get"]["responses"]) == {
+        "200",
+        "401",
+        "404",
+        "422",
+        "500",
+        "503",
+    }
+    assert set(detail["get"]["responses"]) == {
+        "200",
+        "401",
+        "404",
+        "422",
+        "500",
+        "503",
+    }
+    score_schema = schema["components"]["schemas"]["AnalysisSummary"]["properties"]["quality_score"]
+    assert {item.get("type") for item in score_schema["anyOf"]} == {"number", "null"}
+    result_schema = schema["components"]["schemas"]["ValidationResultResponse"]
+    assert result_schema["properties"]["rule_type"]["enum"] == [
+        "required",
+        "unique",
+        "type",
+        "range",
+        "regex",
+    ]
+
+
 def test_app_startup_requires_api_configuration(
     clear_datacheck_environment: None,
 ) -> None:

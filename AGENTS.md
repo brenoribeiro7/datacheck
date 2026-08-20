@@ -2,7 +2,7 @@
 
 ## Purpose and current phase
 
-DataCheck is a flagship CSV data-quality application whose first release is intentionally limited to the smallest technically convincing end-to-end product. DC-00 through DC-04 are closed. DC-05 is the next phase and has not started; DC-06 has not started.
+DataCheck is a flagship CSV data-quality application whose first release is intentionally limited to the smallest technically convincing end-to-end product. DC-00 through DC-04 are closed. DC-05 implementation is complete and in validation/integration closure; DC-06 has not started.
 
 The v1.0 roadmap ends at DC-06:
 
@@ -24,7 +24,7 @@ Do not add a DC-07+ phase or silently restore superseded first-release requireme
 - The v1.0 product flow is API-first. Frontend product screens, generated TypeScript clients, and browser automation are post-v1.0.
 - Analysis is synchronous in v1.0. Distributed retries, leases, reconciliation, and Celery product processing are post-v1.0.
 - CSV is the only v1.0 ingestion format. DC-03 accepts one strict UTF-8 CSV up to 10 MiB, with at most 256 header columns, in controlled local storage; large-file capacity claims and object storage are post-v1.0.
-- DC-03 configures `required`, `unique`, `type`, `range`, and `regex` rules against known uploaded columns. DC-04 evaluates those five families in a pure deterministic engine with complete counts and at most 20 violation samples. Loading data, persistence, scoring, and history remain DC-05 responsibilities and have not started.
+- DC-03 configures `required`, `unique`, `type`, `range`, and `regex` rules against known uploaded columns. DC-04 evaluates those five families in a pure deterministic engine with complete counts and at most 20 violation samples. DC-05 synchronously captures an owner-scoped upload/rule snapshot, invokes that engine, persists immutable results, calculates the simple quality score, and exposes history.
 - Before adding functionality, require evidence that it is necessary to make the minimum product flow functional, secure, or technically convincing.
 
 ## Approved stack
