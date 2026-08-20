@@ -73,7 +73,11 @@ def _validate_range(rule: RangeRuleSpec) -> None:
             continue
         if isinstance(boundary, bool) or not isinstance(boundary, (int, float)):
             raise ValidationInputError("range boundaries must be finite numbers")
-        if not math.isfinite(boundary):
+        try:
+            finite = math.isfinite(boundary)
+        except OverflowError:
+            raise ValidationInputError("range boundaries must be finite numbers") from None
+        if not finite:
             raise ValidationInputError("range boundaries must be finite numbers")
     if rule.minimum is not None and rule.maximum is not None and rule.minimum > rule.maximum:
         raise ValidationInputError("range minimum must not exceed maximum")

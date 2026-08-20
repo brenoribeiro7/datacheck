@@ -143,7 +143,18 @@ def test_engine_rejects_invalid_structural_inputs(
         validate(data, [rule])
 
 
-@pytest.mark.parametrize("boundary", [math.nan, math.inf, -math.inf, True, "1"])
+@pytest.mark.parametrize(
+    "boundary",
+    [
+        math.nan,
+        math.inf,
+        -math.inf,
+        True,
+        "1",
+        pytest.param(10**10_000, id="huge-positive-int"),
+        pytest.param(-(10**10_000), id="huge-negative-int"),
+    ],
+)
 def test_engine_rejects_non_finite_or_non_numeric_range_boundaries(boundary: object) -> None:
     rule = RangeRuleSpec(uuid4(), "value", minimum=cast(Any, boundary))
 
