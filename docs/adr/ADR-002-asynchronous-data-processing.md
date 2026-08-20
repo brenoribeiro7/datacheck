@@ -1,27 +1,27 @@
 # ADR-002: Asynchronous Data Processing
 
-- Status: Accepted
+- Status: Deferred beyond v1.0; v1.0 analysis is synchronous
 - Date: 2026-08-13
 
 ## Context
 
-CSV inputs may reach 5 GiB, so validation cannot depend on one request lifetime. Processing needs durable domain status, bounded retries, recoverability after worker loss, and explainable persisted results.
+The original roadmap proposed large-file asynchronous processing with durable retry and worker recovery. Those requirements are outside the reduced v1.0 scope.
 
 ## Decision
 
-Use PostgreSQL for domain and coordination state, Redis as the Celery broker, a Celery worker for asynchronous execution, and a framework-independent Validation Engine using Polars. An analysis has at most three attempts, retries only transient failures, and uses renewable PostgreSQL-arbitrated leases. Repeated deliveries must have idempotent observable effects by `analysis_id`. Reconciliation can recover expired work when attempts remain.
+Use synchronous application-service execution for v1.0 while preserving PostgreSQL as domain truth and the infrastructure-independent Validation Engine. Redis and Celery remain frozen foundation. The asynchronous retry, lease, redelivery, and reconciliation design is a post-v1.0 option rather than a release requirement.
 
 ## Alternatives considered
 
-- Synchronous request processing: rejected because file size and processing time exceed a reliable request boundary.
+- Synchronous processing: selected for the reduced v1.0 scope and its bounded input contract.
 - Redis as domain or lock truth: rejected because historical state and arbitration require durable relational consistency.
-- Exactly-once execution: rejected as an unsound broker guarantee; idempotent observable effects are the required property.
+- Exactly-once execution: rejected as an unsound broker guarantee; a future asynchronous design would instead require idempotent observable effects.
 - Kafka, RabbitMQ, or a distributed service topology: rejected as unnecessary initial complexity.
 
 ## Consequences
 
-Workers and the API share backend domain rules and staging access. Attempts, leases, result publication, and cleanup require explicit persistence constraints and integration tests. Broker delivery may repeat, and recovery must recheck PostgreSQL state before doing or publishing work.
+The v1.0 path avoids broker delivery and distributed coordination. If asynchronous execution is reconsidered after v1.0, it requires a new scope decision and the persistence/integration guarantees described by the original proposal.
 
 ## Revision triggers
 
-Revisit if measured throughput exceeds Celery/Redis capacity, shared staging cannot support the deployment topology, task routing needs fundamentally different semantics, or operational evidence justifies independent processing services.
+Revisit only after v1.0 when measured workload or deployment evidence justifies asynchronous processing.

@@ -1,25 +1,25 @@
 # ADR-001: Hybrid Architecture
 
-- Status: Accepted
+- Status: Foundation retained; product UI deferred beyond v1.0
 - Date: 2026-08-13
 
 ## Context
 
-The first release requires a web interface, while CSV validation and data processing are central product capabilities. The solution needs a clear browser contract, strong Python data tooling, and a topology that a small project can operate and explain.
+The original roadmap assumed a mandatory web interface alongside CSV validation and data processing. The reduced v1.0 roadmap is API-first, while retaining the already-built frontend foundation.
 
 ## Decision
 
-Use a React/TypeScript single-page frontend, a FastAPI/Python modular-monolith backend, and a Data Processing extension built around an isolated Validation Engine and Polars. Frontend and backend communicate only through a versioned HTTP API.
+Retain the React/TypeScript shell, FastAPI/Python modular monolith, and isolated Validation Engine/Polars boundary. The React shell is frozen for v1.0; any post-v1.0 frontend communicates only through the versioned HTTP API.
 
 ## Alternatives considered
 
-- API-only: rejected because a web interface is mandatory for the first release.
+- API-first v1.0: selected by the reduced roadmap; the earlier rejection is superseded.
 - Full-stack TypeScript: rejected because Python data-processing capabilities are central.
 - Distributed services: rejected because they add operational and consistency complexity without a current boundary or scale requirement.
 
 ## Consequences
 
-The system has two language toolchains and an explicit OpenAPI-to-TypeScript contract flow. Backend modules must preserve the Validation Engine boundary. The modular monolith keeps deployment and transactions understandable while allowing the worker to run separately.
+The repository retains two language toolchains, but v1.0 does not require generated TypeScript contracts or frontend product work. Backend modules preserve the Validation Engine boundary. The modular monolith keeps deployment and transactions understandable; the worker remains frozen foundation.
 
 ## Revision triggers
 

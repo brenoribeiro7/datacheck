@@ -1,15 +1,15 @@
 # ADR-004: Ephemeral Dataset Files
 
-- Status: Accepted
+- Status: Deferred beyond v1.0; v1.0 uses bounded local CSV storage
 - Date: 2026-08-13
 
 ## Context
 
-The product must ingest CSV files up to 5 GiB and preserve explainable history, but retaining every original file indefinitely increases privacy, storage, and operational risk. The initial deployment can share filesystem storage between API and worker.
+The original roadmap proposed very large staged uploads shared by the API and worker. The reduced v1.0 requires only bounded UTF-8 CSV ingestion using local application storage.
 
 ## Decision
 
-Use temporary shared-filesystem staging with a 5 GiB inclusive upload limit. Delete the original CSV after `COMPLETED` or definitive `FAILED`, record and retry failed cleanup, expire unused available uploads after 24 hours, and clean stale uploads after six hours without activity. Preserve history through DatasetVersion metadata, rule snapshots, results, and bounded violation samples.
+For v1.0, use a documented bounded local CSV flow, treat filenames as untrusted, and retain only what the synchronous analysis and explainable history require. Complex staging states, retried cleanup, and dataset-version lifecycles are deferred.
 
 ## Alternatives considered
 
@@ -19,8 +19,8 @@ Use temporary shared-filesystem staging with a 5 GiB inclusive upload limit. Del
 
 ## Consequences
 
-A second analysis requires a new upload and DatasetVersion. Cleanup state and reconciliation are required. API and worker need access to the same protected staging filesystem. Product history cannot be used to reprocess a deleted original file.
+The frozen shared staging volume remains in the repository but does not impose a worker-driven v1.0 lifecycle. A future staged-upload design requires a new scope and retention decision.
 
 ## Revision triggers
 
-Revisit when processes no longer share a filesystem, deployment becomes multi-host, storage durability requirements change, retention policy changes, or benchmark evidence shows the initial staging design cannot meet the 5 GiB requirement.
+Revisit after v1.0 if deployment becomes multi-host, storage durability requirements change, or measured input sizes justify a more complex lifecycle.
