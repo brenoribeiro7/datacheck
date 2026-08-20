@@ -16,6 +16,7 @@ def clear_datacheck_environment(monkeypatch: pytest.MonkeyPatch) -> None:
         "DATACHECK_ENVIRONMENT",
         "DATACHECK_DATABASE_URL",
         "DATACHECK_TRUSTED_ORIGINS",
+        "DATACHECK_DATASET_STORAGE_ROOT",
         "DATACHECK_CELERY_BROKER_URL",
     ):
         monkeypatch.delenv(variable, raising=False)

@@ -70,6 +70,7 @@ jobs:
       DATACHECK_ENVIRONMENT: test
       DATACHECK_DATABASE_URL: postgresql+psycopg://datacheck:datacheck-ci-local@127.0.0.1:5432/datacheck
       DATACHECK_TRUSTED_ORIGINS: '["http://localhost:3000"]'
+      DATACHECK_DATASET_STORAGE_ROOT: ${{ runner.temp }}/datacheck-datasets
       DATACHECK_CELERY_BROKER_URL: redis://127.0.0.1:6379/0
     services:
       postgres:
@@ -129,7 +130,7 @@ jobs:
       - name: Check Alembic model drift
         run: uv run alembic check
 
-      - name: Confirm DC-02 identity tables
+      - name: Confirm DC-03 product tables
         run: |
           uv run python - <<'PY'
           import os
@@ -139,12 +140,18 @@ jobs:
           engine = create_engine(os.environ["DATACHECK_DATABASE_URL"])
           try:
               tables = set(inspect(engine).get_table_names())
-              expected = {"alembic_version", "sessions", "users"}
+              expected = {
+                  "alembic_version",
+                  "datasets",
+                  "sessions",
+                  "users",
+                  "validation_rules",
+              }
               if tables != expected:
                   raise SystemExit(
                       f"Unexpected schema: expected {sorted(expected)}, found {sorted(tables)}"
                   )
-              print("DC-02 identity tables found.")
+              print("DC-03 product tables found.")
           finally:
               engine.dispose()
           PY
@@ -269,6 +276,8 @@ jobs:
 
       - name: Validate shared staging volume
         run: |
+          docker compose -p datacheck-ci --env-file .env.example exec -T api \
+            test -d /var/lib/datacheck/staging/datasets
           docker compose -p datacheck-ci --env-file .env.example exec -T api \
             sh -c 'umask 077; printf ci-shared-staging > /var/lib/datacheck/staging/.ci-smoke'
           test "$(docker compose -p datacheck-ci --env-file .env.example exec -T worker \

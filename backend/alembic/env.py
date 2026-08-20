@@ -4,6 +4,7 @@ from sqlalchemy import engine_from_config, pool
 
 from alembic import context
 from datacheck.core.settings import ApiSettings
+from datacheck.datasets import models as dataset_models
 from datacheck.identity import models as identity_models
 from datacheck.infrastructure.database import Base
 
@@ -15,6 +16,7 @@ if config.config_file_name is not None:
 # Importing the concrete mappings registers their tables on the authoritative metadata
 # without opening a database connection or loading runtime settings.
 _identity_tables = (identity_models.User.__table__, identity_models.UserSession.__table__)
+_dataset_tables = (dataset_models.Dataset.__table__, dataset_models.ValidationRule.__table__)
 target_metadata = Base.metadata
 
 

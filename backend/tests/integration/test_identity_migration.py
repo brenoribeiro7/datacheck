@@ -67,7 +67,7 @@ def _assert_constraint_rejects(
 
 def _assert_schema(engine: Engine) -> None:
     inspector = inspect(engine)
-    assert set(inspector.get_table_names()) == {"alembic_version", "sessions", "users"}
+    assert {"alembic_version", "sessions", "users"}.issubset(inspector.get_table_names())
 
     user_columns = {column["name"]: column for column in inspector.get_columns("users")}
     assert set(user_columns) == {

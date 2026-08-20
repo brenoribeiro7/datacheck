@@ -1,5 +1,6 @@
 import uuid
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import cast
 
 import pytest
@@ -77,6 +78,7 @@ def _application(service: _ServiceStub) -> FastAPI:
         environment="test",
         database_url=SecretStr("postgresql+psycopg://internal-db.example.invalid/datacheck"),
         trusted_origins=(_ORIGIN,),
+        dataset_storage_root=Path("/tmp/datacheck-test-datasets"),
     )
     return create_app(
         settings=settings,

@@ -99,6 +99,15 @@ def require_json_content_type(request: Request) -> None:
         raise _unsupported_media_type()
 
 
+def require_multipart_content_type(request: Request) -> None:
+    values = request.headers.getlist("content-type")
+    if len(values) != 1:
+        raise _unsupported_multipart_media_type()
+    media_type = values[0].split(";", 1)[0].strip().lower()
+    if media_type != "multipart/form-data":
+        raise _unsupported_multipart_media_type()
+
+
 def parse_csrf_header(request: Request) -> bytes | None:
     values = request.headers.getlist("x-csrf-token")
     if len(values) != 1:
@@ -145,4 +154,12 @@ def _unsupported_media_type() -> ApiError:
         status_code=415,
         code="unsupported_media_type",
         message="Content-Type must be application/json with UTF-8 encoding.",
+    )
+
+
+def _unsupported_multipart_media_type() -> ApiError:
+    return ApiError(
+        status_code=415,
+        code="unsupported_media_type",
+        message="Content-Type must be multipart/form-data.",
     )

@@ -4,6 +4,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from functools import partial
+from pathlib import Path
 from typing import cast
 
 import pytest
@@ -65,6 +66,7 @@ def _test_client(
         environment="test",
         database_url=SecretStr("postgresql+psycopg://redacted.invalid/datacheck_test"),
         trusted_origins=(_ORIGIN,),
+        dataset_storage_root=Path("/tmp/datacheck-test-datasets"),
     )
     application = create_app(
         settings=settings,
