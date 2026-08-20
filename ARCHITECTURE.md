@@ -28,16 +28,17 @@ React, Redis, Celery, and the worker already exist as frozen foundation. They re
 
 ## 3. Delivery state
 
-DC-00 through DC-04 are closed. DC-05 and DC-06 have not started.
+DC-00 through DC-04 are closed. DC-05 implementation is complete and in
+validation/integration closure. DC-06 has not started.
 
 Implemented product persistence currently consists of:
 
 - `users`;
 - `sessions`;
 - owner-scoped `datasets` with active-upload metadata;
-- dataset-scoped `validation_rules`.
-
-Future persistence entities described below are DC-05 boundaries, not claims of current implementation.
+- dataset-scoped `validation_rules`;
+- immutable owner-scoped `analyses` with source and score snapshots;
+- ordered per-rule `validation_results` with complete counts and bounded samples.
 
 ## 4. Identity persistence
 
@@ -106,6 +107,13 @@ PostgreSQL constraints remain the final arbiter for unique normalized email and 
 
 Dataset upload and rule creation lock the same owner-scoped `datasets` row. This serializes header replacement with rule creation so a committed rule cannot target a column absent from the active CSV. Exact duplicate rules are resolved by a PostgreSQL unique constraint.
 
+Analysis uses that same dataset row lock only while it copies upload metadata, all
+ordered rules, and the bounded active file into memory. It verifies the captured size and
+SHA-256 before releasing the transaction. Polars parsing, the Validation Engine, and score
+calculation then run without a database session or row lock. A second short transaction
+atomically inserts the successful Analysis and all ValidationResults; failures leave no
+partial history.
+
 ## 10. Dataset and CSV boundary
 
 DC-03 adds the minimum owner-isolated `Dataset` and `ValidationRule` entities plus one active bounded CSV upload per dataset. The CSV contract is comma-delimited strict UTF-8 with optional BOM, a 10 MiB file limit, at most 256 exact unique header columns, and uniform row width. Parsing records only byte size, SHA-256, row count, columns, upload time, and safe filename metadata; it does not infer schema or quality.
@@ -142,14 +150,26 @@ DC-05 performs analysis synchronously:
 
 ```text
 create analysis
-  -> load CSV
+  -> capture an owner-scoped upload and complete rule snapshot
+  -> materialize and verify bounded CSV bytes
+  -> load a textual Polars DataFrame
   -> run Validation Engine
-  -> persist rule results and violations
   -> calculate score
+  -> atomically persist Analysis and ordered ValidationResults
   -> return persisted result
 ```
 
-The v1.0 quality score uses one simple documented formula over applicable rule results. Weighted severity systems, asynchronous workers, leases, distributed retries, reconciliation, exactly-once claims, and ML scoring are post-v1.0.
+The immutable Analysis snapshot retains filename metadata, content hash, size, rows,
+columns, upload time, score, and total violations. Each ValidationResult retains the
+historical rule ID without an active-rule foreign key, the canonical rule definition,
+complete counts, and the first 20 violation samples. Reupload and rule deletion therefore
+cannot rewrite past results, and history reads never reload CSV data or recalculate scores.
+
+The quality score is `100 × sum(passed_count) / sum(evaluated_count)`, calculated with
+Decimal arithmetic and rounded half-up to two decimal places. Skipped cells are excluded;
+when there are no applicable evaluations the score is `null`. Weighted severity systems,
+asynchronous workers, leases, distributed retries, reconciliation, exactly-once claims,
+and ML scoring are post-v1.0.
 
 ## 13. Ownership
 

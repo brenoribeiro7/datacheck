@@ -39,7 +39,7 @@ DC-01 CLOSED
 DC-02 CLOSED
 DC-03 CLOSED
 DC-04 CLOSED
-DC-05 NOT STARTED
+DC-05 IMPLEMENTATION COMPLETE — VALIDATION AND INTEGRATION CLOSURE
 DC-06 NOT STARTED
 ```
 
@@ -61,8 +61,12 @@ are not executed during ingestion.
 DC-04 now provides a pure deterministic Validation Engine for `required`, `unique`,
 `type`, `range`, and `regex`. It evaluates textual in-memory Polars data, treats null,
 empty, and whitespace-only cells as missing, reports complete counts, and retains the
-first 20 violation samples. Persistence, quality scores, and analysis history remain
-DC-05 responsibilities.
+first 20 violation samples.
+
+DC-05 integrates that engine into a synchronous owner-scoped workflow. It captures a
+coherent snapshot of the active upload and every configured rule, persists immutable
+per-rule results and bounded samples atomically, calculates a simple deterministic
+quality score, and exposes persisted analysis history.
 
 ## Authentication API
 
@@ -90,6 +94,20 @@ DELETE /api/v1/datasets/{dataset_id}/rules/{rule_id}
 Uploads accept exactly one comma-delimited `.csv` file up to 10 MiB, encoded as strict UTF-8 with an optional UTF-8 BOM. The header is required, supports at most 256 unique columns, and every row must match its width. Files are stored beneath the configured local storage root under generated UUID-based keys; the submitted filename remains untrusted metadata and never selects a path.
 
 The configurable rule types are `required`, `unique`, `type`, `range`, and `regex`. A valid CSV must be uploaded before rules can be created, and each rule targets an exact column from the active header. Reupload remains possible only when every configured target column is preserved.
+
+## Analysis API
+
+```http
+POST /api/v1/datasets/{dataset_id}/analyses
+GET  /api/v1/datasets/{dataset_id}/analyses
+GET  /api/v1/datasets/{dataset_id}/analyses/{analysis_id}
+```
+
+Analysis is synchronous. The quality score is `100 × total passed evaluations / total
+evaluated cells`, rounded half-up to two decimal places; skipped cells do not enter the
+denominator, and a run with no applicable evaluations returns `null`. Historical upload
+metadata, rule definitions, complete counts, and at most 20 samples per rule remain
+frozen even after a compatible reupload or rule deletion.
 
 ## Technology foundation
 
