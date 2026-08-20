@@ -38,7 +38,7 @@ The v1.0 roadmap has seven sequential phases and ends at DC-06. No DC-07+ phase 
 
 ## DC-05 — Analysis, Results and Score
 
-- **Status:** IMPLEMENTATION COMPLETE — VALIDATION AND INTEGRATION CLOSURE
+- **Status:** CLOSED
 - **Objective:** Run the engine synchronously, persist explainable results, calculate a simple documented score, and expose history.
 - **Scope:** `Analysis`, `ValidationResult`, synchronous execution, rule counts, violations, quality score, and analysis history.
 - **Non-goals:** Celery product processing, distributed retries, leases, reconciliation, exactly-once claims, severity frameworks, weighted scoring, or ML scoring.
