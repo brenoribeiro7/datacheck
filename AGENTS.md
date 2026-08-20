@@ -2,7 +2,7 @@
 
 ## Purpose and current phase
 
-DataCheck is a flagship CSV data-quality application whose first release is intentionally limited to the smallest technically convincing end-to-end product. DC-00 and DC-01 are closed. DC-02 identity and API security is implemented and undergoing validation and integration closure. DC-03 through DC-06 have not started.
+DataCheck is a flagship CSV data-quality application whose first release is intentionally limited to the smallest technically convincing end-to-end product. DC-00 through DC-02 are closed. DC-03 is the next phase but has not started; DC-04 through DC-06 have not started.
 
 The v1.0 roadmap ends at DC-06:
 

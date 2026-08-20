@@ -36,7 +36,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the current boundaries and security m
 ```text
 DC-00 CLOSED
 DC-01 CLOSED
-DC-02 implementation complete / validation and integration closure
+DC-02 CLOSED
 DC-03 NOT STARTED
 DC-04 NOT STARTED
 DC-05 NOT STARTED
@@ -53,8 +53,6 @@ DC-02 currently provides:
 - explicit Origin/Referer and synchronizer-token CSRF validation;
 - sanitized API errors and server-generated trace IDs;
 - OpenAPI contracts for register, login, current user, and logout.
-
-DC-02 is not declared closed until its branch is integrated into `main`.
 
 ## Authentication API
 

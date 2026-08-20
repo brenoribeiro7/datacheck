@@ -28,7 +28,7 @@ React, Redis, Celery, and the worker already exist as frozen foundation. They re
 
 ## 3. Delivery state
 
-DC-00 and DC-01 are closed. DC-02 identity and API security is implemented and undergoing validation and integration closure. DC-03 through DC-06 have not started.
+DC-00 through DC-02 are closed. DC-03 through DC-06 have not started.
 
 Implemented product persistence currently consists of:
 
