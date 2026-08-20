@@ -1,19 +1,20 @@
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Request, Response, status
+from fastapi import APIRouter, Depends, Response, status
 
 from datacheck.api.dependencies import (
     enforce_json_content_type,
     enforce_trusted_origin,
     get_api_settings,
+    get_csrf_token,
     get_identity_service,
+    get_session_cookie,
     require_authenticated_context,
 )
 from datacheck.api.errors import ApiError, policy_validation_error
 from datacheck.api.security import (
     cookie_policy,
     expire_session_cookie,
-    parse_csrf_header,
     set_session_cookie,
 )
 from datacheck.core.settings import ApiSettings
@@ -37,14 +38,27 @@ from datacheck.identity.service import (
 )
 from datacheck.identity.tokens import encode_token
 
-_ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
-    status.HTTP_401_UNAUTHORIZED: {"model": ErrorResponse},
-    status.HTTP_403_FORBIDDEN: {"model": ErrorResponse},
-    status.HTTP_409_CONFLICT: {"model": ErrorResponse},
-    status.HTTP_415_UNSUPPORTED_MEDIA_TYPE: {"model": ErrorResponse},
-    status.HTTP_422_UNPROCESSABLE_CONTENT: {"model": ErrorResponse},
-    status.HTTP_500_INTERNAL_SERVER_ERROR: {"model": ErrorResponse},
-    status.HTTP_503_SERVICE_UNAVAILABLE: {"model": ErrorResponse},
+
+def _error_responses(*status_codes: int) -> dict[int | str, dict[str, Any]]:
+    return {status_code: {"model": ErrorResponse} for status_code in status_codes}
+
+
+_REGISTER_ERROR_RESPONSES = _error_responses(403, 409, 415, 422, 500, 503)
+_LOGIN_ERROR_RESPONSES = _error_responses(401, 403, 415, 422, 500, 503)
+_ME_ERROR_RESPONSES = _error_responses(401, 500, 503)
+_LOGOUT_ERROR_RESPONSES = _error_responses(403, 500, 503)
+_LOGOUT_OPENAPI_EXTRA = {
+    "parameters": [
+        {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": False,
+            "description": (
+                "Required to revoke an active session; returned by authenticated session endpoints."
+            ),
+            "schema": {"type": "string"},
+        }
+    ]
 }
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
@@ -54,7 +68,7 @@ router = APIRouter(prefix="/auth", tags=["authentication"])
     "/register",
     status_code=status.HTTP_201_CREATED,
     response_model=AuthenticatedSessionResponse,
-    responses=_ERROR_RESPONSES,
+    responses=_REGISTER_ERROR_RESPONSES,
     dependencies=[Depends(enforce_trusted_origin), Depends(enforce_json_content_type)],
 )
 def register(
@@ -92,7 +106,7 @@ def register(
 @router.post(
     "/login",
     response_model=AuthenticatedSessionResponse,
-    responses=_ERROR_RESPONSES,
+    responses=_LOGIN_ERROR_RESPONSES,
     dependencies=[Depends(enforce_trusted_origin), Depends(enforce_json_content_type)],
 )
 def login(
@@ -124,7 +138,7 @@ def login(
 @router.get(
     "/me",
     response_model=AuthenticatedSessionResponse,
-    responses=_ERROR_RESPONSES,
+    responses=_ME_ERROR_RESPONSES,
 )
 def me(
     response: Response,
@@ -140,20 +154,22 @@ def me(
 @router.post(
     "/logout",
     status_code=status.HTTP_204_NO_CONTENT,
-    responses=_ERROR_RESPONSES,
+    responses=_LOGOUT_ERROR_RESPONSES,
     dependencies=[Depends(enforce_trusted_origin)],
+    openapi_extra=_LOGOUT_OPENAPI_EXTRA,
 )
 def logout(
-    request: Request,
     response: Response,
     settings: Annotated[ApiSettings, Depends(get_api_settings)],
     identity_service: Annotated[IdentityService, Depends(get_identity_service)],
+    encoded_bearer: Annotated[str | None, Depends(get_session_cookie)],
+    supplied_csrf_token: Annotated[bytes | None, Depends(get_csrf_token)],
 ) -> None:
     policy = cookie_policy(settings.environment)
     try:
         identity_service.logout(
-            encoded_bearer=request.cookies.get(policy.name),
-            supplied_csrf_token=parse_csrf_header(request),
+            encoded_bearer=encoded_bearer,
+            supplied_csrf_token=supplied_csrf_token,
         )
     except InvalidCsrf:
         raise ApiError(

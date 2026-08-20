@@ -69,6 +69,7 @@ jobs:
     env:
       DATACHECK_ENVIRONMENT: test
       DATACHECK_DATABASE_URL: postgresql+psycopg://datacheck:datacheck-ci-local@127.0.0.1:5432/datacheck
+      DATACHECK_TRUSTED_ORIGINS: '["http://localhost:3000"]'
       DATACHECK_CELERY_BROKER_URL: redis://127.0.0.1:6379/0
     services:
       postgres:
@@ -128,7 +129,7 @@ jobs:
       - name: Check Alembic model drift
         run: uv run alembic check
 
-      - name: Confirm absence of product tables
+      - name: Confirm DC-02 identity tables
         run: |
           uv run python - <<'PY'
           import os
@@ -138,10 +139,12 @@ jobs:
           engine = create_engine(os.environ["DATACHECK_DATABASE_URL"])
           try:
               tables = set(inspect(engine).get_table_names())
-              unexpected = tables - {"alembic_version"}
-              if unexpected:
-                  raise SystemExit(f"Unexpected product tables: {sorted(unexpected)}")
-              print("No product tables found.")
+              expected = {"alembic_version", "sessions", "users"}
+              if tables != expected:
+                  raise SystemExit(
+                      f"Unexpected schema: expected {sorted(expected)}, found {sorted(tables)}"
+                  )
+              print("DC-02 identity tables found.")
           finally:
               engine.dispose()
           PY

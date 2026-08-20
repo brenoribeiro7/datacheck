@@ -54,7 +54,7 @@ def test_readiness_hides_failed_probe_details() -> None:
     assert internal_detail not in response.text
 
 
-def test_openapi_generation_excludes_operational_endpoints() -> None:
+def test_openapi_generation_describes_the_authentication_contract() -> None:
     application = create_app(settings=_settings(), database_probe=lambda: None)
 
     schema = application.openapi()
@@ -67,10 +67,52 @@ def test_openapi_generation_excludes_operational_endpoints() -> None:
         "/api/v1/auth/me",
         "/api/v1/auth/logout",
     }.issubset(schema["paths"])
-    assert (
-        schema["components"]["schemas"]["RegisterRequest"]["properties"]["password"]["writeOnly"]
-        is True
-    )
+    components = schema["components"]
+    for request_schema in ("RegisterRequest", "LoginRequest"):
+        assert components["schemas"][request_schema]["properties"]["password"]["writeOnly"] is True
+
+    assert components["securitySchemes"] == {
+        "DevelopmentSessionCookie": {
+            "type": "apiKey",
+            "description": "HttpOnly session cookie used in development and test environments.",
+            "in": "cookie",
+            "name": "datacheck_session",
+        },
+        "ProductionSessionCookie": {
+            "type": "apiKey",
+            "description": "Secure __Host- session cookie used in production.",
+            "in": "cookie",
+            "name": "__Host-datacheck_session",
+        },
+    }
+    cookie_security: list[dict[str, list[str]]] = [
+        {"DevelopmentSessionCookie": []},
+        {"ProductionSessionCookie": []},
+    ]
+    register = schema["paths"]["/api/v1/auth/register"]["post"]
+    login = schema["paths"]["/api/v1/auth/login"]["post"]
+    me = schema["paths"]["/api/v1/auth/me"]["get"]
+    logout = schema["paths"]["/api/v1/auth/logout"]["post"]
+    assert "security" not in register
+    assert "security" not in login
+    assert me["security"] == cookie_security
+    assert logout["security"] == cookie_security
+
+    assert logout["parameters"] == [
+        {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": False,
+            "description": (
+                "Required to revoke an active session; returned by authenticated session endpoints."
+            ),
+            "schema": {"type": "string"},
+        }
+    ]
+    assert set(register["responses"]) == {"201", "403", "409", "415", "422", "500", "503"}
+    assert set(login["responses"]) == {"200", "401", "403", "415", "422", "500", "503"}
+    assert set(me["responses"]) == {"200", "401", "500", "503"}
+    assert set(logout["responses"]) == {"204", "403", "500", "503"}
 
 
 def test_app_startup_requires_api_configuration(
