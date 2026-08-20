@@ -28,7 +28,7 @@ React, Redis, Celery, and the worker already exist as frozen foundation. They re
 
 ## 3. Delivery state
 
-DC-00 through DC-03 are closed. DC-04 through DC-06 have not started.
+DC-00 through DC-03 are closed. DC-04 implementation is complete and in validation/integration closure. DC-05 and DC-06 have not started.
 
 Implemented product persistence currently consists of:
 
@@ -37,7 +37,7 @@ Implemented product persistence currently consists of:
 - owner-scoped `datasets` with active-upload metadata;
 - dataset-scoped `validation_rules`.
 
-Future entities described below are boundaries for DC-04 and DC-05, not claims of current implementation.
+Future persistence entities described below are DC-05 boundaries, not claims of current implementation.
 
 ## 4. Identity persistence
 
@@ -127,6 +127,14 @@ DC-04 supports exactly five rule families:
 - `regex`.
 
 Each result contains complete evaluated/passed/failed counts and a bounded sample of violations. Rule semantics are deterministic and testable without HTTP or infrastructure.
+
+The implemented engine accepts an ordered sequence of immutable rule specifications and
+a materialized Polars `DataFrame` whose target columns use the textual `String` dtype.
+It preserves rule and row order, numbers the first data row as 1, and returns immutable
+in-memory results. Null, empty, and Unicode-whitespace-only cells are missing; trimming
+is never applied to non-missing validation. Complete violation counts are retained while
+only the first 20 violations per rule are sampled. Loading CSV data, persistence, score,
+and history remain outside this boundary.
 
 ## 12. Analysis and score boundary
 
