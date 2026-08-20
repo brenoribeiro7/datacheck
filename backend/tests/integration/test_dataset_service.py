@@ -333,3 +333,60 @@ def test_failed_old_file_cleanup_does_not_undo_committed_reupload(
     ]
     assert "old.csv" not in repr(warnings)
     assert old_key not in repr(warnings)
+
+
+def test_unexpected_post_commit_cleanup_failure_preserves_new_active_file(
+    identity_database: DatabaseResources,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    owner_id = _insert_user(identity_database, "unexpected-cleanup")
+    storage = LocalDatasetStorage(tmp_path / "storage")
+    service = DatasetService(
+        session_factory=identity_database.session_factory,
+        storage=storage,
+        clock=lambda: _NOW,
+    )
+    dataset = service.create_dataset(owner_id=owner_id, name="Unexpected cleanup")
+    original = b"id\n1\n"
+    service.upload_csv(
+        owner_id=owner_id,
+        dataset_id=dataset.dataset_id,
+        original_filename="old.csv",
+        source=BytesIO(original),
+    )
+    old_key = next(storage.root.glob("*.csv")).name
+    original_remove = storage.remove
+    remove_calls: list[str] = []
+
+    def fail_unexpectedly_for_old_file(storage_key: str) -> None:
+        remove_calls.append(storage_key)
+        if storage_key == old_key:
+            raise RuntimeError("synthetic unexpected cleanup failure")
+        original_remove(storage_key)
+
+    monkeypatch.setattr(storage, "remove", fail_unexpectedly_for_old_file)
+    replacement = b"id\n2\n"
+    with pytest.raises(RuntimeError, match="synthetic unexpected cleanup failure"):
+        service.upload_csv(
+            owner_id=owner_id,
+            dataset_id=dataset.dataset_id,
+            original_filename="new.csv",
+            source=BytesIO(replacement),
+        )
+
+    with identity_database.session_factory() as session:
+        stored = session.get(Dataset, dataset.dataset_id)
+        assert stored is not None
+        assert stored.storage_key is not None
+        new_key = stored.storage_key
+        assert stored.original_filename == "new.csv"
+        assert stored.content_sha256 == hashlib.sha256(replacement).digest()
+        assert stored.size_bytes == len(replacement)
+        assert stored.row_count == 1
+        assert stored.column_names == ["id"]
+
+    assert new_key != old_key
+    assert remove_calls == [old_key]
+    assert (storage.root / new_key).read_bytes() == replacement
+    assert (storage.root / old_key).read_bytes() == original

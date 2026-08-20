@@ -55,6 +55,15 @@ class RangeRuleConfiguration(_StrictModel):
     minimum: FiniteFloat | None = None
     maximum: FiniteFloat | None = None
 
+    @field_validator("minimum", "maximum", mode="before")
+    @classmethod
+    def validate_numeric_boundary(cls, value: object) -> object:
+        if value is None:
+            return value
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ValueError("range boundary must be a JSON number")
+        return value
+
     @model_validator(mode="after")
     def validate_bounds(self) -> "RangeRuleConfiguration":
         if self.minimum is None and self.maximum is None:

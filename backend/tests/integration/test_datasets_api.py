@@ -317,3 +317,42 @@ def test_upload_accepts_exact_file_boundary_and_reupload_conflict_preserves_stat
     assert after == before
     with identity_database.session_factory() as session:
         assert session.scalar(select(func.count()).select_from(ValidationRule)) == 1
+
+
+def test_range_rule_http_contract_rejects_coercion_and_accepts_json_numbers(
+    identity_database: DatabaseResources,
+    tmp_path: Path,
+) -> None:
+    client = _test_client(identity_database, tmp_path / "storage")
+    with client:
+        csrf = _register(client, "strict-range-api@example.test")
+        dataset_id = _create_dataset(client, csrf).json()["id"]
+        assert _upload(client, csrf, dataset_id, b"age\n42\n").status_code == 200
+        endpoint = f"/api/v1/datasets/{dataset_id}/rules"
+        headers = {**_mutation_headers(csrf), "Content-Type": "application/json"}
+
+        for configuration in (
+            {"minimum": True},
+            {"minimum": "1"},
+            {"maximum": False},
+            {"maximum": "1.5"},
+        ):
+            response = client.post(
+                endpoint,
+                headers=headers,
+                json={"type": "range", "target_column": "age", "configuration": configuration},
+            )
+            assert response.status_code == 422
+
+        accepted = client.post(
+            endpoint,
+            headers=headers,
+            json={
+                "type": "range",
+                "target_column": "age",
+                "configuration": {"minimum": 1},
+            },
+        )
+
+    assert accepted.status_code == 201
+    assert accepted.json()["configuration"] == {"minimum": 1.0, "maximum": None}

@@ -68,3 +68,43 @@ def test_range_rejects_non_finite_numbers(boundary: float) -> None:
                 "configuration": {"minimum": boundary},
             }
         )
+
+
+@pytest.mark.parametrize(
+    ("configuration", "expected"),
+    [
+        ({"minimum": 0}, {"minimum": 0.0, "maximum": None}),
+        ({"minimum": 1}, {"minimum": 1.0, "maximum": None}),
+        ({"minimum": -1}, {"minimum": -1.0, "maximum": None}),
+        ({"minimum": 1.5}, {"minimum": 1.5, "maximum": None}),
+        ({"maximum": 10}, {"minimum": None, "maximum": 10.0}),
+        ({"minimum": 1, "maximum": 2.5}, {"minimum": 1.0, "maximum": 2.5}),
+    ],
+)
+def test_range_accepts_only_real_json_numbers(
+    configuration: dict[str, object], expected: dict[str, object]
+) -> None:
+    parsed = _ADAPTER.validate_python(
+        {"type": "range", "target_column": "age", "configuration": configuration}
+    )
+    assert canonical_rule_configuration(parsed) == expected
+
+
+@pytest.mark.parametrize(
+    "configuration",
+    [
+        {"minimum": True},
+        {"minimum": False},
+        {"maximum": True},
+        {"maximum": False},
+        {"minimum": "1"},
+        {"minimum": "1.5"},
+        {"maximum": "2"},
+        {"maximum": ""},
+    ],
+)
+def test_range_rejects_booleans_and_strings(configuration: dict[str, object]) -> None:
+    with pytest.raises(ValidationError):
+        _ADAPTER.validate_python(
+            {"type": "range", "target_column": "age", "configuration": configuration}
+        )

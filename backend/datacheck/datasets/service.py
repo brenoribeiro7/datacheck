@@ -138,56 +138,62 @@ class DatasetService:
 
         candidate = self._storage.write_candidate(source)
         installed_key: str | None = None
+        committed = False
         try:
             structure = scan_csv(candidate.path)
             now = self._now()
             new_key = self._storage.new_storage_key()
             old_key: str | None = None
 
-            with self._session_factory() as database_session, database_session.begin():
-                datasets = DatasetRepository(database_session)
-                rules = ValidationRuleRepository(database_session)
-                dataset = datasets.get_for_owner_for_update(
-                    dataset_id=dataset_id, owner_id=owner_id
-                )
-                if dataset is None:
-                    raise DatasetNotFound
-                if not rules.target_columns(dataset.id).issubset(structure.column_names):
-                    raise IncompatibleUpload
-
-                old_key = dataset.storage_key
-                installed_key = new_key
-                self._storage.install(candidate, new_key)
-                dataset.original_filename = safe_filename
-                dataset.storage_key = new_key
-                dataset.content_sha256 = candidate.content_sha256
-                dataset.size_bytes = candidate.size_bytes
-                dataset.row_count = structure.row_count
-                dataset.column_names = list(structure.column_names)
-                dataset.uploaded_at = now
-                dataset.updated_at = now
-                database_session.flush()
-                result = self._dataset_reference(dataset)
-
-            if old_key is not None and old_key != new_key:
-                try:
-                    self._storage.remove(old_key)
-                except OSError:
-                    # The committed row points to a complete file. A failed cleanup may
-                    # leave an orphan but must not invalidate the correct active upload.
-                    logger.warning(
-                        "Failed to remove superseded dataset file.",
-                        extra={"dataset_id": str(dataset_id)},
+            with self._session_factory() as database_session:
+                with database_session.begin():
+                    datasets = DatasetRepository(database_session)
+                    rules = ValidationRuleRepository(database_session)
+                    dataset = datasets.get_for_owner_for_update(
+                        dataset_id=dataset_id, owner_id=owner_id
                     )
-            return result
+                    if dataset is None:
+                        raise DatasetNotFound
+                    if not rules.target_columns(dataset.id).issubset(structure.column_names):
+                        raise IncompatibleUpload
+
+                    old_key = dataset.storage_key
+                    installed_key = new_key
+                    self._storage.install(candidate, new_key)
+                    dataset.original_filename = safe_filename
+                    dataset.storage_key = new_key
+                    dataset.content_sha256 = candidate.content_sha256
+                    dataset.size_bytes = candidate.size_bytes
+                    dataset.row_count = structure.row_count
+                    dataset.column_names = list(structure.column_names)
+                    dataset.uploaded_at = now
+                    dataset.updated_at = now
+                    database_session.flush()
+                    result = self._dataset_reference(dataset)
+
+                # The transaction context sets this only after commit succeeds. Session
+                # cleanup errors after this point must never delete the active file.
+                committed = True
         except BaseException:
             self._storage.discard_candidate(candidate)
-            if installed_key is not None:
+            if installed_key is not None and not committed:
                 try:
                     self._storage.remove(installed_key)
                 except OSError:
                     pass
             raise
+
+        if old_key is not None and old_key != new_key:
+            try:
+                self._storage.remove(old_key)
+            except OSError:
+                # The committed row points to a complete file. A failed cleanup may
+                # leave an orphan but must not invalidate the correct active upload.
+                logger.warning(
+                    "Failed to remove superseded dataset file.",
+                    extra={"dataset_id": str(dataset_id)},
+                )
+        return result
 
     def create_rule(
         self,
