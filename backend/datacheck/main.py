@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from datacheck.analysis.service import AnalysisService
 from datacheck.api.errors import register_error_handlers
 from datacheck.api.middleware import (
     DatasetUploadSizeLimitMiddleware,
@@ -33,6 +34,7 @@ def create_app(
     database_resources: DatabaseResources | None = None,
     identity_service: IdentityService | None = None,
     dataset_service: DatasetService | None = None,
+    analysis_service: AnalysisService | None = None,
 ) -> FastAPI:
     """Create an isolated API instance with process-scoped infrastructure."""
     resolved_settings = settings or ApiSettings.from_environment()
@@ -40,6 +42,7 @@ def create_app(
     configured_resources = database_resources
     configured_identity_service = identity_service
     configured_dataset_service = dataset_service
+    configured_analysis_service = analysis_service
     active_probe: DatabaseProbe | None = None
 
     @asynccontextmanager
@@ -65,13 +68,28 @@ def create_app(
                 password_service=PasswordService(),
             )
         application.state.identity_service = active_identity_service
+        storage: LocalDatasetStorage | None = None
+        if resources is not None and (
+            configured_dataset_service is None or configured_analysis_service is None
+        ):
+            storage = LocalDatasetStorage(resolved_settings.dataset_storage_root)
+
         active_dataset_service = configured_dataset_service
         if active_dataset_service is None and resources is not None:
+            assert storage is not None
             active_dataset_service = DatasetService(
                 session_factory=resources.session_factory,
-                storage=LocalDatasetStorage(resolved_settings.dataset_storage_root),
+                storage=storage,
             )
         application.state.dataset_service = active_dataset_service
+        active_analysis_service = configured_analysis_service
+        if active_analysis_service is None and resources is not None:
+            assert storage is not None
+            active_analysis_service = AnalysisService(
+                session_factory=resources.session_factory,
+                storage=storage,
+            )
+        application.state.analysis_service = active_analysis_service
 
         try:
             yield
@@ -81,6 +99,7 @@ def create_app(
             active_probe = None
             application.state.identity_service = None
             application.state.dataset_service = None
+            application.state.analysis_service = None
             if owns_resources and resources is not None:
                 resources.dispose()
 
