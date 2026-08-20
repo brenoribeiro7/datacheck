@@ -3,6 +3,7 @@ from logging.config import fileConfig
 from sqlalchemy import engine_from_config, pool
 
 from alembic import context
+from datacheck.analysis import models as analysis_models
 from datacheck.core.settings import ApiSettings
 from datacheck.datasets import models as dataset_models
 from datacheck.identity import models as identity_models
@@ -17,6 +18,10 @@ if config.config_file_name is not None:
 # without opening a database connection or loading runtime settings.
 _identity_tables = (identity_models.User.__table__, identity_models.UserSession.__table__)
 _dataset_tables = (dataset_models.Dataset.__table__, dataset_models.ValidationRule.__table__)
+_analysis_tables = (
+    analysis_models.Analysis.__table__,
+    analysis_models.ValidationResult.__table__,
+)
 target_metadata = Base.metadata
 
 

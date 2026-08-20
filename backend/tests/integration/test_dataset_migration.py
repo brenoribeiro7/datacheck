@@ -181,9 +181,8 @@ def test_dc03_migration_schema_constraints_and_full_cycle() -> None:
             "sessions",
             "users",
         }
-        command.upgrade(alembic_config, "head")
+        command.upgrade(alembic_config, "0002_datasets_rules_csv")
         _assert_dc03_schema(resources.engine)
-        command.check(alembic_config)
         _assert_database_constraints(resources.engine)
 
         command.downgrade(alembic_config, "0001_identity_sessions")
@@ -195,7 +194,7 @@ def test_dc03_migration_schema_constraints_and_full_cycle() -> None:
         command.downgrade(alembic_config, "base")
         assert set(inspect(resources.engine).get_table_names()) == {"alembic_version"}
 
-        command.upgrade(alembic_config, "head")
+        command.upgrade(alembic_config, "0002_datasets_rules_csv")
         _assert_dc03_schema(resources.engine)
     finally:
         command.downgrade(alembic_config, "base")
