@@ -15,7 +15,7 @@ The v1.0 roadmap has seven sequential phases and ends at DC-06. No DC-07+ phase 
 
 ## DC-02 — Identity and API Security
 
-- **Status:** Implementation complete / validation and integration closure
+- **Status:** CLOSED
 - **Objective:** Provide session-based identity and proportional API security.
 - **Scope:** User/session persistence; Argon2id passwords; opaque hashed session tokens; register, login, current-user, and logout contracts; secure cookie policy; trusted-origin and CSRF enforcement; safe errors; OpenAPI; unit, PostgreSQL, HTTP, migration, and concurrency tests.
 - **Non-goals:** Frontend authentication, generated clients, OAuth/OIDC, MFA, password recovery, email verification, RBAC, organizations, JWT, or sophisticated rate limiting.
