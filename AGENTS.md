@@ -2,7 +2,7 @@
 
 ## Purpose and current phase
 
-DataCheck is a flagship CSV data-quality application whose first release is intentionally limited to the smallest technically convincing end-to-end product. DC-00 through DC-03 are closed. DC-04 is the next phase and has not started; DC-05 and DC-06 have not started.
+DataCheck is a flagship CSV data-quality application whose first release is intentionally limited to the smallest technically convincing end-to-end product. DC-00 through DC-03 are closed. DC-04 implementation is complete and in validation/integration closure; DC-05 and DC-06 have not started.
 
 The v1.0 roadmap ends at DC-06:
 
@@ -24,7 +24,7 @@ Do not add a DC-07+ phase or silently restore superseded first-release requireme
 - The v1.0 product flow is API-first. Frontend product screens, generated TypeScript clients, and browser automation are post-v1.0.
 - Analysis is synchronous in v1.0. Distributed retries, leases, reconciliation, and Celery product processing are post-v1.0.
 - CSV is the only v1.0 ingestion format. DC-03 accepts one strict UTF-8 CSV up to 10 MiB, with at most 256 header columns, in controlled local storage; large-file capacity claims and object storage are post-v1.0.
-- DC-03 configures `required`, `unique`, `type`, `range`, and `regex` rules against known uploaded columns. It does not execute them; execution starts only in DC-04 after DC-03 is merged and formally closed.
+- DC-03 configures `required`, `unique`, `type`, `range`, and `regex` rules against known uploaded columns. DC-04 evaluates those five families in a pure deterministic engine with complete counts and at most 20 violation samples. Loading data, persistence, scoring, and history remain DC-05 responsibilities and have not started.
 - Before adding functionality, require evidence that it is necessary to make the minimum product flow functional, secure, or technically convincing.
 
 ## Approved stack

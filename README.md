@@ -38,7 +38,7 @@ DC-00 CLOSED
 DC-01 CLOSED
 DC-02 CLOSED
 DC-03 CLOSED
-DC-04 NOT STARTED
+DC-04 IMPLEMENTATION COMPLETE — VALIDATION AND INTEGRATION CLOSURE
 DC-05 NOT STARTED
 DC-06 NOT STARTED
 ```
@@ -56,7 +56,13 @@ DC-02 currently provides:
 
 DC-03 now provides owner-scoped datasets, one bounded local CSV upload per dataset,
 persisted structural metadata, and configurable validation rules. Rules are stored but
-are not executed until DC-04.
+are not executed during ingestion.
+
+DC-04 now provides a pure deterministic Validation Engine for `required`, `unique`,
+`type`, `range`, and `regex`. It evaluates textual in-memory Polars data, treats null,
+empty, and whitespace-only cells as missing, reports complete counts, and retains the
+first 20 violation samples. Persistence, quality scores, and analysis history remain
+DC-05 responsibilities.
 
 ## Authentication API
 
