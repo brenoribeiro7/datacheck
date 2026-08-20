@@ -23,7 +23,7 @@ The v1.0 roadmap has seven sequential phases and ends at DC-06. No DC-07+ phase 
 
 ## DC-03 — Datasets, Rules and CSV
 
-- **Status:** IMPLEMENTATION COMPLETE — VALIDATION AND INTEGRATION CLOSURE
+- **Status:** CLOSED
 - **Objective:** Add the smallest owner-isolated dataset and rule model with bounded UTF-8 CSV ingestion.
 - **Scope:** `Dataset`, `ValidationRule`, local CSV upload, metadata, basic file/content validation, ownership, and minimal persistence.
 - **Non-goals:** Object storage, additional formats, large-file targets, versioning frameworks, or complex file lifecycle orchestration.
