@@ -1,116 +1,113 @@
 # DataCheck
 
-DataCheck is a planned web application for repeatable, explainable CSV data-quality analysis. The repository now contains an executable backend/frontend foundation, local service topology, foundational tests, and initial CI validation. Product workflows remain intentionally unimplemented.
+DataCheck is a flagship API-first application for repeatable, explainable CSV data-quality analysis. Its v1.0 scope is intentionally limited to the smallest complete product that demonstrates secure API design, domain modeling, CSV ingestion, deterministic validation, explainable persisted results, tests, CI, and professional documentation.
 
-## Problem
+## Product flow
 
-Analysts and engineers routinely receive external datasets whose quality is checked manually or with disposable scripts. That process is hard to repeat, audit, and explain.
+```text
+Register -> Login -> Create Dataset -> Upload CSV -> Configure Rules
+         -> Analyze -> Quality Score -> Violations -> Analysis History
+```
 
-## Solution
+The first release is complete when this flow is secure, owner-isolated, deterministic, reproducible, tested, and documented.
 
-DataCheck will let an authenticated user upload a CSV, configure validation rules, start an asynchronous analysis, inspect rule-level violations, and retain analysis history without retaining the original file indefinitely.
+## v1.0 scope
 
-## Core capabilities
+- session-based registration, login, current-user lookup, and logout;
+- user-owned datasets and validation rules;
+- bounded UTF-8 CSV upload using local application storage;
+- `required`, `unique`, `type`, `range`, and `regex` rules;
+- synchronous deterministic analysis;
+- persisted rule results, bounded violation samples, quality score, and history;
+- PostgreSQL migrations, automated tests, CI, OpenAPI, and release documentation.
 
-- browser-based CSV upload, up to 5 GiB inclusive;
-- asynchronous validation;
-- explainable rule results and bounded violation samples;
-- persisted analysis history;
-- per-user resource ownership;
-- versioned HTTP contract between the frontend and backend.
+Frontend product flows, generated TypeScript clients, asynchronous analysis, distributed retries, leases, reconciliation, large-file capacity claims, object storage, and additional input formats are post-v1.0.
 
-## Architecture overview
+## Architecture
 
-The approved design is a React single-page application backed by a modular FastAPI monolith. PostgreSQL is the domain source of truth. Celery uses Redis as work infrastructure, while an isolated Validation Engine processes data with Polars. Uploaded CSV files use temporary shared staging storage in the initial topology.
+The active product is a modular FastAPI monolith backed by PostgreSQL. The Validation Engine remains independent of FastAPI, SQLAlchemy, and infrastructure. Analysis is synchronous in v1.0.
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for lifecycle, security, contract, and persistence decisions.
+React, Redis, Celery, and the existing worker/Compose topology remain as frozen foundation from the earlier architecture. They are not removed, but they are not expanded into product functionality for v1.0.
 
-## Technology stack
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the current boundaries and security model.
 
-- Python 3.13.15, FastAPI, Pydantic, SQLAlchemy, Alembic, Celery, and Polars;
-- Node.js 24.19.0, TypeScript 5.9.3, React 19.2.8, Vite, and Tailwind CSS;
-- PostgreSQL 18.4 and Redis Server 8.10.0;
-- uv 0.12.3 and pnpm 11.12.0 with versioned lockfiles.
+## Current status
 
-Exact dependency and image references are in [STACK_DECISION.md](STACK_DECISION.md).
+```text
+DC-00 CLOSED
+DC-01 CLOSED
+DC-02 implementation complete / validation and integration closure
+DC-03 NOT STARTED
+DC-04 NOT STARTED
+DC-05 NOT STARTED
+DC-06 NOT STARTED
+```
 
-## Validation rules
+DC-02 currently provides:
 
-The first release supports `required`, `unique`, `type`, `min_value`, `max_value`, `min_length`, `max_length`, and `regex`.
+- `users` and `sessions` through Alembic revision `0001_identity_sessions`;
+- Argon2id password hashing and a 15–128 character password policy;
+- opaque 256-bit session tokens with only their hashes persisted;
+- idle and absolute expiration, revocation, and bounded cleanup;
+- secure environment-specific session cookies;
+- explicit Origin/Referer and synchronizer-token CSRF validation;
+- sanitized API errors and server-generated trace IDs;
+- OpenAPI contracts for register, login, current user, and logout.
 
-## Analysis lifecycle
+DC-02 is not declared closed until its branch is integrated into `main`.
 
-An analysis moves through `QUEUED`, `RUNNING`, and either `COMPLETED` or `FAILED`. Work is limited to three total attempts, retries only transient failures, and relies on PostgreSQL-backed state plus renewable processing leases. There is no exactly-once claim.
+## Authentication API
 
-## Quality Score
+```http
+POST /api/v1/auth/register
+POST /api/v1/auth/login
+GET  /api/v1/auth/me
+POST /api/v1/auth/logout
+```
 
-Quality Score v1 is the arithmetic mean of applicable rule scores with equal rule weights. It measures conformity with configured rules; it is not the percentage of good rows or a universal data-quality metric.
+Production uses the Secure, HttpOnly, SameSite=Lax `__Host-datacheck_session` cookie. Development and test use the explicit non-Secure `datacheck_session` cookie on loopback origins. Cookie-authenticated mutations require a trusted Origin or Referer and `X-CSRF-Token`.
 
-## Security highlights
+## Technology foundation
 
-The MVP uses opaque server-side sessions, HttpOnly cookies, CSRF protection, Argon2id password hashing, explicit ownership checks, and safe error responses. Original CSV files are temporary and must not be retained indefinitely.
+- Python 3.13.15, FastAPI, Pydantic, SQLAlchemy, Alembic, and Polars;
+- PostgreSQL 18.4;
+- frozen React/Vite, Redis, and Celery foundations;
+- exact direct dependencies and versioned lockfiles.
 
-## Repository status
-
-Current status: DC-00 repository bootstrap and the DC-01 executable foundation are completed; DC-02 has not started. Executable FastAPI and React/Vite foundations, a local five-service Docker Compose topology, foundational tests, and an initial CI workflow exist. No product API or functional product frontend exists; authentication, datasets, uploads, validation, and analysis behavior have not been implemented. There are no product database tables or migration revisions. The 5 GiB release benchmark has not been executed.
-
-DataCheck is licensed under the MIT License. See [LICENSE](LICENSE).
-
-## Documentation
-
-- [Product brief](PRODUCT_BRIEF.md)
-- [Architecture](ARCHITECTURE.md)
-- [Stack decision](STACK_DECISION.md)
-- [Roadmap](ROADMAP.md)
-- [Architecture decision records](docs/adr/)
-- [Repository working agreement](AGENTS.md)
-
-## Roadmap
-
-Delivery is divided into DC-00 through DC-11. DC-00 and DC-01 are completed; DC-02 is the next planned increment, followed by product capabilities, hardening, capacity validation, and release.
-
-## Development prerequisites
-
-- Git
-- Docker Engine with Docker Compose
-- uv 0.12.3
-- Python 3.13.15
-- Node.js 24.19.0
-- pnpm 11.12.0
-
-The version files, manifests, lockfiles, and [stack decision](STACK_DECISION.md) are authoritative.
+Exact dependency and image references are recorded in [STACK_DECISION.md](STACK_DECISION.md).
 
 ## Development setup
 
-Create a local environment file from the safe development template, then start the complete topology:
+Prerequisites are Git, Docker Engine with Docker Compose, uv 0.12.3, and Python 3.13.15.
+
+Create the local configuration and validate Compose:
 
 ```sh
 cp .env.example .env
+docker compose --env-file .env.example config --quiet
+```
+
+The example configuration permits only `http://127.0.0.1:5173` as the browser origin. Do not use wildcard origins with credentialed requests.
+
+For a fresh local database, start PostgreSQL, build the API image, and apply migrations before starting the complete frozen topology:
+
+```sh
+docker compose up -d postgres
+docker compose build api
+docker compose run --rm api alembic upgrade head
 docker compose up --build --wait
 docker compose ps
 ```
 
-The local services are available at:
-
-- frontend: <http://127.0.0.1:5173/>;
-- API liveness: <http://127.0.0.1:8000/health>;
-- API readiness: <http://127.0.0.1:8000/ready>;
-- PostgreSQL: `127.0.0.1:5432`;
-- Redis: `127.0.0.1:6379`.
-
-Stop the topology normally with:
+Normal shutdown preserves named volumes:
 
 ```sh
 docker compose down
 ```
 
-Normal shutdown preserves the PostgreSQL named volume. `docker compose down -v` deletes the local PostgreSQL and staging volumes and is only appropriate for an explicit local reset.
+`docker compose down -v` deletes project volumes and is only appropriate for an explicitly authorized reset of the exact Compose project.
 
-The example PostgreSQL password is a disposable local placeholder, not production secret management. It remains URL-safe because Compose derives the backend database URL from the local PostgreSQL variables.
-
-## Quality commands
-
-Backend:
+## Backend quality commands
 
 ```sh
 cd backend
@@ -121,18 +118,24 @@ uv run mypy datacheck tests
 uv run pytest -m "not integration"
 ```
 
-Frontend:
+Integration tests require an isolated disposable PostgreSQL database:
 
 ```sh
-cd frontend
-pnpm install --frozen-lockfile
-pnpm typecheck
-pnpm test
-pnpm build
+DATACHECK_ENVIRONMENT=test \
+DATACHECK_DATABASE_URL='postgresql+psycopg://USER:PASSWORD@HOST:PORT/DATABASE' \
+DATACHECK_TRUSTED_ORIGINS='["http://localhost:3000"]' \
+uv run pytest -m integration
 ```
 
-The equivalent aggregate frontend gate is `pnpm check`. The Compose configuration can be checked without starting services:
+Never point the integration suite at a development or shared database: its migration fixture restores the selected database to an empty schema.
 
-```sh
-docker compose --env-file .env.example config --quiet
-```
+## Documentation
+
+- [Product brief](PRODUCT_BRIEF.md)
+- [Architecture](ARCHITECTURE.md)
+- [Roadmap](ROADMAP.md)
+- [Stack decision](STACK_DECISION.md)
+- [Architecture decisions](docs/adr/)
+- [Repository working agreement](AGENTS.md)
+
+DataCheck is licensed under the [MIT License](LICENSE).

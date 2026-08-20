@@ -2,97 +2,112 @@
 
 ## Purpose and current phase
 
-DataCheck is a browser-based, explainable CSV data-quality product for Data Analysts and Data Engineers. DC-00 and the DC-01 executable foundation are complete; DC-02 remains planned and has not started. Backend and frontend shells, foundational tests, a local five-service Compose topology, and the initial CI workflow exist; product functionality does not.
+DataCheck is a flagship CSV data-quality application whose first release is intentionally limited to the smallest technically convincing end-to-end product. DC-00 and DC-01 are closed. DC-02 identity and API security is implemented and undergoing validation and integration closure. DC-03 through DC-06 have not started.
+
+The v1.0 roadmap ends at DC-06:
+
+- DC-00 — Scope / Bootstrap
+- DC-01 — Executable Foundation
+- DC-02 — Identity and API Security
+- DC-03 — Datasets, Rules and CSV
+- DC-04 — Validation Engine
+- DC-05 — Analysis, Results and Score
+- DC-06 — Hardening and v1.0.0
+
+Do not add a DC-07+ phase or silently restore superseded first-release requirements.
+
+## Scope boundaries
+
+- Keep the backend a modular FastAPI monolith with PostgreSQL as domain truth.
+- Keep the Validation Engine independent of HTTP, persistence, queues, and UI concerns.
+- React, Redis, Celery, the worker, and the existing Compose topology are frozen foundation: do not remove, rewrite, or expand them for v1.0 unless a release-blocking defect requires a proportionate fix.
+- The v1.0 product flow is API-first. Frontend product screens, generated TypeScript clients, and browser automation are post-v1.0.
+- Analysis is synchronous in v1.0. Distributed retries, leases, reconciliation, and Celery product processing are post-v1.0.
+- CSV is the only v1.0 ingestion format. Keep limits documented and proportionate; large-file capacity claims and object storage are post-v1.0.
+- Before adding functionality, require evidence that it is necessary to make the minimum product flow functional, secure, or technically convincing.
 
 ## Approved stack
 
 - Backend: Python 3.13.15; uv 0.12.3; FastAPI 0.141.1; Pydantic 2.13.4; Pydantic Settings 2.15.0; SQLAlchemy 2.0.52; Alembic 1.19.1; psycopg 3.3.4; Celery 5.6.3; redis-py 6.4.0; Polars 1.43.2; argon2-cffi 25.1.0; Uvicorn 0.52.2; python-multipart 0.0.32; httpx 0.28.1; pytest 9.1.1; Ruff 0.16.2; mypy 2.3.0.
-- Frontend: Node.js 24.19.0; pnpm 11.12.0; TypeScript 5.9.3; React and React DOM 19.2.8; Vite 8.2.1; Tailwind CSS 4.3.3; Zod 4.4.3; Vitest 4.1.10; Playwright 1.62.1; openapi-typescript 7.13.0.
-- Infrastructure: PostgreSQL 18.4 and Redis Server 8.10.0 through the versioned Docker Compose topology.
+- Frontend foundation: Node.js 24.19.0; pnpm 11.12.0; TypeScript 5.9.3; React and React DOM 19.2.8; Vite 8.2.1; Tailwind CSS 4.3.3; Zod 4.4.3; Vitest 4.1.10.
+- Infrastructure foundation: PostgreSQL 18.4 and Redis Server 8.10.0 through the versioned Docker Compose topology.
 
 Exact manifests, lockfiles, and [STACK_DECISION.md](STACK_DECISION.md) are authoritative. Do not silently substitute technologies or versions.
 
-## Dependency and architecture boundaries
-
-- Keep a React frontend separated from the backend by a versioned HTTP contract.
-- Keep the backend a modular monolith. The Celery worker is a separate process within the same backend and domain.
-- PostgreSQL is the source of truth for domain and coordination state. Redis is broker/work infrastructure, not historical truth.
-- Keep the Validation Engine independent of FastAPI, HTTP, cookies, Celery, Redis, SQLAlchemy, PostgreSQL, and React.
-- Frontend code must not directly access PostgreSQL or Redis.
-- Generate TypeScript transport types from the FastAPI/Pydantic OpenAPI contract; do not duplicate transport DTOs manually.
-
 ## Security rules
 
-- Use opaque 256-bit server-side sessions; persist only token hashes.
+- Use opaque 256-bit server-side sessions and persist only session-token hashes.
 - Use production cookies with `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`, no `Domain`, and the preferred name `__Host-datacheck_session`.
-- Protect cookie-authenticated mutations with a synchronizer token sent as `X-CSRF-Token`.
+- Protect cookie-authenticated mutations with an explicit trusted-origin policy and a synchronizer token sent as `X-CSRF-Token`.
 - Hash passwords with Argon2id; never store plaintext or reversible passwords.
-- Enforce ownership at every ID-based boundary and return `404 resource_not_found` for missing and out-of-ownership resources alike.
-- Never log credentials, raw session or CSRF tokens, cookies, CSV content, observed-value previews, or dataset rows.
+- Enforce ownership at every ID-based boundary and return the same not-found response for missing and out-of-ownership resources.
+- Never log credentials, raw session or CSRF tokens, cookies, CSV content, or secrets.
 - Never commit secrets or environment-specific credentials.
 
 ## Data-handling rules
 
-- Enforce a maximum CSV size of 5 GiB inclusive.
-- Treat uploaded CSV files as temporary. Delete them after terminal analysis states, with recorded and retried cleanup when physical deletion fails.
-- Expire unused staged uploads after 24 hours and consider inactive `UPLOADING` records stale after 6 hours.
-- Persist complete rule counts but no more than 1,000 violation samples per rule and analysis.
-- Limit observed-value previews to 256 Unicode characters and record truncation.
-- Do not retain entire rows merely to explain a violation.
+- Treat filenames and CSV content as untrusted input.
+- Accept only UTF-8 CSV in v1.0 and enforce the documented size limit during ingestion.
+- Persist complete validation counts but only bounded violation samples.
+- Do not retain entire rows merely to explain one violation.
+- Avoid claims about unsupported formats, object storage, distributed processing, or large-file capacity.
 
 ## Migration rules
 
-- All relational schema changes must use Alembic once its environment is established.
-- Migrations must be reviewed with their model and constraint changes, include a rollback or recovery assessment, and avoid destructive data changes without explicit approval.
-- Do not claim conceptual entities or constraints are implemented before their migrations exist.
-- PostgreSQL 18 persistent storage must account for the official image layout rooted at `/var/lib/postgresql`.
+- All relational schema changes use Alembic.
+- Review migrations with their models and constraints, including rollback or recovery impact.
+- Do not rewrite a published migration. Add a new migration only when an approved schema correction requires one.
+- Avoid destructive data changes without explicit approval.
+- Do not claim an entity or constraint is implemented before its migration exists.
 
 ## Testing expectations
 
-- Isolate and unit-test Validation Engine rule semantics.
-- Test API contracts, ownership boundaries, authentication, CSRF, persistence constraints, retry/lease behavior, and cleanup.
-- Test frontend behavior and generated-contract integration with Vitest; reserve Playwright for essential browser flows.
-- Use integration tests for PostgreSQL, Redis, and Celery boundaries.
-- Complete an explicit synthetic 5 GiB benchmark before the first release; the requirement is not evidence of passing capacity.
+- Test domain behavior independently where practical.
+- Test API contracts, authentication, CSRF, ownership, persistence constraints, migrations, and deterministic validation semantics at their appropriate boundaries.
+- Use an isolated disposable PostgreSQL database for integration and migration tests.
+- Keep local quality commands aligned with CI.
+- Do not require frontend, Redis, or Celery product tests while those foundations remain frozen.
 
 ## Dependency policy
 
 - Pin direct dependencies exactly and commit both lockfiles.
-- Use stable releases only unless an explicit reviewed decision says otherwise.
-- Use `uv` for Python and `pnpm` for frontend package management.
-- Do not hand-edit lockfiles or add a dependency for convenience. Record why each direct dependency is required.
-- Validate compatibility, locked installation, and relevant integration boundaries before accepting dependency changes.
-- Pin Python, Node.js, PostgreSQL, and Redis container bases by exact tag and repository digest. Do not replace the recorded references with floating tags.
+- Use `uv` for Python and `pnpm` for the frozen frontend foundation.
+- Do not hand-edit lockfiles or add dependencies for convenience.
+- Validate compatibility before accepting a dependency change.
+- Keep container images pinned by exact tag and recorded digest.
 
 ## Container and CI rules
 
-- The versioned Compose topology contains PostgreSQL, Redis, API, worker, and frontend services. Keep host publications bound to loopback for local development.
-- Mount PostgreSQL 18 persistent storage at `/var/lib/postgresql`, and keep API/worker staging shared at `/var/lib/datacheck/staging`.
-- Use `docker compose down` for normal shutdown. `docker compose down -v` deletes local named volumes and is reserved for an explicit reset.
-- Keep GitHub Actions dependencies pinned to full commit SHAs, permissions read-only unless a reviewed need requires more, and local commands aligned with CI commands.
-- There is no frontend lint command because ESLint is not an approved dependency. Do not disguise typecheck as lint.
-- Playwright browser installation and execution remain deferred until an essential browser flow exists.
-- OpenAPI TypeScript generation remains deferred until the first product `/api/v1` contract exists.
+- Keep existing host publications bound to loopback for local development.
+- Never use or reset a database belonging to another project.
+- Use uniquely named, disposable resources for integration qualification and remove only those resources after the run.
+- Keep GitHub Actions dependencies pinned to full commit SHAs and permissions read-only unless a reviewed need requires more.
+- CI must qualify the schema and behavior actually present in the current phase.
+- `docker compose down -v` is destructive and requires explicit reset authorization for the exact project.
 
 ## Git rules
 
 - Keep changes scoped to one reviewed increment.
-- Use `main` as the initial branch and concise imperative commit messages.
-- Do not commit `.venv`, `node_modules`, uploaded data, generated reports, credentials, or local environment files.
-- Run whitespace, lockfile, test, security, and documentation checks appropriate to the changed scope before commit.
-- Do not rewrite shared history, force-push, publish, or add remotes without explicit authorization.
+- Preserve shared history; do not force-push or rewrite published commits.
+- Inspect staged and unstaged changes before commit.
+- Do not commit `.venv`, `node_modules`, uploaded data, generated reports, credentials, local environment files, or tool caches.
+- Run the checks appropriate to the changed scope before publication.
+
+## Documentation rules
+
+- Keep README, product brief, architecture, roadmap, and accepted ADRs consistent with implemented behavior and the reduced v1.0 scope.
+- Historical architecture does not authorize implementation of superseded requirements.
+- Use neutral professional language in public artifacts.
 
 ## Stop conditions
 
-Stop and request review if a change requires an unapproved stack substitution, an incompatible direct version, weakened security or data-retention rules, destructive migration, disclosure of sensitive data, or a material architecture change. Do not conceal failed checks or self-authorize structural workarounds.
+Stop and request review if a change requires an unapproved stack substitution, published-migration rewrite, destructive data operation, weakened security, disclosure of sensitive data, force push, material architecture change, frontend product expansion, asynchronous product processing, or scope beyond DC-06.
 
 ## Reporting expectations
 
-Every increment report must state scope, files changed, commands executed, validation results, failures, warnings, migrations, security/data impact, Git state, and intentionally deferred work. Claims must be supported by current repository evidence.
+Every increment report states scope, files changed, validation results, failures, warnings, migrations, security/data impact, Git state, and intentionally deferred work. Claims must be supported by current repository evidence.
 
-## Current actual commands
-
-Backend quality:
+## Current backend commands
 
 ```sh
 cd backend
@@ -101,28 +116,7 @@ uv run ruff format --check .
 uv run ruff check .
 uv run mypy datacheck tests
 uv run pytest -m "not integration"
+uv run pytest -m integration
 ```
 
-Frontend quality:
-
-```sh
-cd frontend
-pnpm install --frozen-lockfile
-pnpm typecheck
-pnpm test
-pnpm build
-```
-
-`pnpm check` runs the frontend typecheck, test, and build gates together. No frontend lint command exists.
-
-Local topology:
-
-```sh
-cp .env.example .env
-docker compose --env-file .env.example config --quiet
-docker compose up --build --wait
-docker compose ps
-docker compose down
-```
-
-The CI workflow must reproduce these locked quality and topology boundaries from a clean checkout. Operational `/health` and `/ready` endpoints are foundation probes, not product API contracts.
+Operational `/health` and `/ready` endpoints remain outside the product OpenAPI contract.

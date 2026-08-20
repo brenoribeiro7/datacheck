@@ -1,335 +1,160 @@
 # DataCheck Architecture
 
-Status: Approved conceptual baseline. This document describes intended boundaries and contracts; it does not claim that application source, endpoints, schema, or infrastructure configuration already exists.
+## 1. Architectural objective
 
-## 1. Overall architecture
+DataCheck v1.0 is the smallest flagship application that demonstrates a secure API, relational domain modeling, bounded CSV ingestion, deterministic validation, explainable persisted results, tests, CI, and professional documentation.
 
-```text
-Browser
-  |
-React SPA
-  |
-versioned HTTP API
-  |
-FastAPI
-  |-- PostgreSQL
-  |-- Staging Storage
-  `-- Redis
-        |
-     Celery Worker
-        |
-   Validation Engine
-        |
-      Polars
-```
+The design prioritizes a complete and teachable product flow over breadth.
 
-PostgreSQL is the source of truth for domain state. Redis is broker and work infrastructure, never historical domain truth. The frontend has no direct access to PostgreSQL or Redis. Initial staging storage is a filesystem shared by the backend and worker.
+## 2. System boundary
 
-## 2. Backend style
-
-The backend is a modular monolith. HTTP handling, application services, persistence adapters, background execution, and validation are distinct modules with explicit dependency direction. The worker is a separate runtime process but remains part of the same backend and domain. The MVP does not use microservices.
-
-## 3. Validation Engine boundary
-
-The Validation Engine owns dataset rule evaluation and result calculation. It must not depend on FastAPI, HTTP, cookies, Celery, Redis, SQLAlchemy, PostgreSQL, or React. Application adapters provide plain inputs and consume plain results. Rule behavior must be unit-testable without web, queue, or database infrastructure.
-
-## 4. Domain model
+The active product is a modular FastAPI monolith backed by PostgreSQL:
 
 ```text
-User
- |-- Session
- `-- Dataset
-      |-- ValidationRule
-      |-- StagedUpload
-      `-- DatasetVersion
-           `-- Analysis
-                |-- AnalysisAttempt
-                |-- AnalysisRuleSnapshot
-                |    `-- RuleResult
-                |         `-- ViolationSample
-                `-- successful attempt
+HTTP API
+  -> application services
+  -> domain modules
+  -> SQLAlchemy repositories
+  -> PostgreSQL
+
+CSV adapter
+  -> Validation Engine
+  -> result persistence
 ```
 
-- `User` is the ownership root.
-- `Session` represents a revocable server-side login.
-- `Dataset` is a logical, user-owned resource.
-- `ValidationRule` is the current rule configuration for a dataset.
-- `StagedUpload` represents a temporary upload before consumption.
-- `DatasetVersion` is one immutable accepted upload.
-- `Analysis` tracks one asynchronous analysis of a dataset version.
-- `AnalysisAttempt` records an individual execution attempt.
-- `AnalysisRuleSnapshot` preserves the effective rule configuration used by an analysis.
-- `RuleResult` stores complete evaluation counts and scoring data.
-- `ViolationSample` stores a bounded, safe explanation sample.
-- An analysis identifies its successful attempt when one completes.
+The Validation Engine remains independent of FastAPI, cookies, SQLAlchemy, PostgreSQL, React, Redis, and Celery. It accepts plain rule/input values and returns deterministic result values.
 
-These are conceptual relationships, not claims about implemented tables or fields.
+React, Redis, Celery, and the worker already exist as frozen foundation. They remain versioned but do not participate in the v1.0 product flow. Analysis is synchronous.
 
-## 5. Dataset semantics
+## 3. Delivery state
 
-A `Dataset` is a logical resource; a `DatasetVersion` is one immutable upload. In the MVP, one DatasetVersion has exactly one Analysis. A second analysis requires another upload and a new DatasetVersion after the original CSV has been removed. Existing history comes from persisted versions, rule snapshots, results, and samples rather than reusable original files.
+DC-00 and DC-01 are closed. DC-02 identity and API security is implemented and undergoing validation and integration closure. DC-03 through DC-06 have not started.
 
-## 6. File lifecycle
+Implemented product persistence currently consists of:
 
-- Maximum accepted CSV size is 5 GiB inclusive.
-- CSV files are temporary.
-- After `COMPLETED`, remove the original file.
-- After definitive `FAILED`, attempt immediate removal.
-- If physical removal fails, record cleanup as pending and retry cleanup.
-- An `AVAILABLE` staged upload expires after 24 hours if never consumed.
-- A stale `UPLOADING` record becomes eligible for cleanup after 6 hours without activity.
-- Original files are never retained indefinitely.
+- `users`;
+- `sessions`.
 
-The staging implementation must use non-guessable identifiers, prevent path traversal, stream uploads, enforce size during ingestion, and restrict access to the backend and worker.
+Future entities described below are boundaries for DC-03 through DC-05, not claims of current implementation.
 
-## 7. Analysis lifecycle
+## 4. Identity persistence
 
-```text
-QUEUED -> RUNNING -> COMPLETED
-                  `-> FAILED
+`User` is the ownership root. It stores a display-preserving email, normalized login identity, Argon2id password hash, and timestamps. Normalized email is unique.
+
+`UserSession` stores:
+
+- a user foreign key with delete cascade;
+- a unique SHA-256 hash of the opaque session token;
+- session-bound CSRF material;
+- creation and last-seen timestamps;
+- absolute expiration;
+- optional revocation timestamp.
+
+The database constrains token/CSRF length and lifecycle ordering. Alembic revision `0001_identity_sessions` creates and removes this schema.
+
+## 5. Passwords and sessions
+
+Passwords accept 15 through 128 Unicode characters after NFC normalization. Argon2id uses an explicit reviewed parameter profile. Plaintext and reversible passwords are never stored.
+
+Session tokens contain 256 bits of entropy from a cryptographically secure generator. Only their SHA-256 hashes are persisted. A successful login always issues a new independent session.
+
+Sessions have a two-hour idle timeout and a twelve-hour absolute lifetime. Authentication atomically checks activity and advances `last_seen_at` without allowing concurrent regression. Logout revokes only the current active session and is idempotent for missing or inactive sessions.
+
+## 6. Authentication API
+
+```http
+POST /api/v1/auth/register
+POST /api/v1/auth/login
+GET  /api/v1/auth/me
+POST /api/v1/auth/logout
 ```
 
-`COMPLETED` and `FAILED` are terminal. The MVP has no `CANCELLED` state. State transitions are persisted and arbitrated by PostgreSQL.
+Register returns `201`; login and current-user lookup return `200`; successful or already-inactive logout returns `204`. Missing, malformed, unknown, revoked, and expired authentication state converges to a safe public response where authentication is required.
 
-## 8. Attempts and retry
+OpenAPI is the HTTP contract source of truth. It documents request/response schemas, write-only password fields, cookie authentication for authenticated operations, the logout CSRF header, and route-specific errors. Generated TypeScript clients are not required in v1.0.
 
-An analysis permits at most three total attempts: one initial execution and up to two retries. Only transient infrastructure or availability failures retry. Deterministic input, rule configuration, or evaluation failures do not retry.
+Operational `/health` and `/ready` endpoints are intentionally excluded from product OpenAPI.
 
-The system makes no exactly-once execution guarantee. Its required property is an idempotent observable effect keyed by `analysis_id`: repeated deliveries must not create duplicate terminal results or violate attempt and result constraints.
+## 7. Cookies, origins, CSRF, and CORS
 
-## 9. Lease and recovery
+Production uses:
 
-A `RUNNING` analysis uses a renewable processing lease. A valid active lease prevents duplicate execution. When a lease expires, reconciliation may create a new attempt if attempts remain. PostgreSQL atomically arbitrates status, attempt allocation, lease ownership, expiry, and terminal publication. Redis must not be treated as lock truth.
-
-Recovery must distinguish an abandoned attempt from a completed effect, recheck current PostgreSQL state before work and before publication, and leave an auditable attempt outcome.
-
-## 10. Rule semantics
-
-### `required`
-
-- Text values fail when null, empty, or whitespace-only.
-- Other supported types fail only when null.
-
-### `unique`
-
-- Applies to one column only.
-- Null is skipped.
-- No implicit trimming or case folding occurs.
-- Every occurrence of a duplicated non-null value counts as a failure.
-- Composite uniqueness is outside the MVP.
-
-### `type`
-
-Supported targets are `string`, `integer`, `number`, `boolean`, `date`, and `datetime`.
-
-- Boolean accepts only `true` or `false`, case-insensitively.
-- Date and datetime require ISO 8601.
-- Parsing is not locale-dependent.
-
-### `min_value` and `max_value`
-
-- Apply to numeric values.
-- Null is skipped.
-- An invalid numeric value is an evaluation failure distinct from an ordinary out-of-range violation.
-
-### `min_length` and `max_length`
-
-- Apply to text.
-- Use original value length without implicit trimming.
-- Null is skipped.
-
-### `regex`
-
-- Applies to text using full-match semantics.
-- Invalid expressions are rejected before analysis execution.
-- Null is skipped.
-
-### Common null rule
-
-Only `required` treats null or missing values as violations. Every other rule skips null.
-
-## 11. Missing rule column
-
-When a configured column does not exist, the engine does not emit one violation per row. The analysis fails deterministically with code `missing_rule_column` and is not retried automatically.
-
-## 12. Rule results
-
-Each result conceptually stores:
-
-- `evaluated_count`;
-- `passed_count`;
-- `failed_count`;
-- `skipped_count`.
-
-The invariant is:
-
-```text
-evaluated_count = passed_count + failed_count
-```
-
-Skipped rows are recorded separately and are not included in evaluated count.
-
-## 13. Violation samples
-
-Counts are complete even when samples are bounded. Persist no more than 1,000 violation samples per rule per analysis, and always distinguish:
-
-- complete `failed_count`;
-- returned or persisted violation count;
-- `violations_truncated`.
-
-`row_number` is the 1-based data-record position excluding the header; it must not be described as a physical line number. An observed value is only a preview, limited to 256 Unicode characters, with an explicit truncation indicator. Never store an entire CSV row merely to explain one violation.
-
-## 14. Quality Score v1
-
-For a rule where `evaluated_count > 0`:
-
-```text
-rule_score = 100 * passed_count / evaluated_count
-```
-
-When `evaluated_count = 0`, the rule score is null, status is `not_applicable`, and the rule does not participate in the global average.
-
-The analysis quality score is the arithmetic mean of applicable rule scores with equal rule weights in v1. If no rule is applicable, `quality_score` is null and `quality_score_status` is `not_available`. A failed analysis also has a null quality score. Store `score_version = "v1"` and round only the final presentation result to two decimal places.
-
-Quality Score measures average conformity with configured applicable rules. It is not the percentage of good rows and is not a universal data-quality metric.
-
-## 15. Authentication
-
-Authentication uses server-side sessions. The browser receives only an opaque random session identifier; the database stores its hash, never the raw token. Session tokens contain 256 bits of entropy generated by a cryptographically secure random number generator.
-
-The production cookie uses:
-
-- preferred name `__Host-datacheck_session`;
+- cookie name `__Host-datacheck_session`;
 - `HttpOnly=true`;
 - `Secure=true`;
 - `SameSite=Lax`;
 - `Path=/`;
 - no `Domain` attribute.
 
-Idle timeout is two hours and absolute lifetime is twelve hours. Logout revokes the server-side session and removes the cookie. JWT is not part of the MVP.
+Development and test use `datacheck_session` without `Secure` only on explicitly configured loopback origins. Every API environment requires a trusted-origin allowlist; wildcard credentialed origins are invalid.
 
-## 16. Passwords
+Authentication mutations validate an exact trusted `Origin`, with a validated `Referer` fallback, before domain work. Active-session logout additionally requires the session-bound synchronizer token in `X-CSRF-Token`. Duplicate, missing, malformed, or wrong-session tokens fail closed.
 
-Passwords accept 15 through 128 Unicode characters. There is no forced uppercase, number, and symbol composition rule. Passwords are hashed with Argon2id and are never stored in plaintext or reversible form. Exact Argon2id cost parameters require implementation-time security validation and are not invented at bootstrap.
+## 8. Errors and sensitive data
 
-## 17. CSRF and CORS
+Product API failures use a stable envelope containing a safe code, message, optional field issues, and a server-generated trace ID. Validation responses do not echo submitted values. Database and unexpected failures do not expose driver details or stack traces.
 
-Cookie-authenticated mutations require CSRF protection using a synchronizer token supplied in the custom `X-CSRF-Token` header. The production topology prefers one public origin. Development CORS uses an explicit allowlist and must never combine wildcard origins with credentials.
+Passwords, raw session tokens, token hashes, CSRF tokens, complete cookies, secrets, CSV content, and dataset rows must not be logged. Sensitive session material is excluded from dataclass representations.
 
-## 18. Ownership
+## 9. Transaction and concurrency boundaries
 
-`User` is the ownership root. One user cannot access another user's resources. For an ID-based resource that does not exist or lies outside the current user's ownership, the API returns the same `404 resource_not_found` response to avoid revealing existence.
+Registration persists its user and first session in one transaction. Login verifies credentials before a locked write phase and cannot create a session from a stale password snapshot. Authentication uses one conditional update for activity checks and monotonic touch. Logout locks the selected session before revocation.
 
-## 19. API contract
+PostgreSQL constraints remain the final arbiter for unique normalized email and unique session-token hash.
 
-The HTTP API is versioned under `/api/v1`. Planned resource groups are `auth`, `datasets`, `uploads`, `rules`, `analyses`, `results`, and `violations`. These contracts are conceptual and are not implemented by this baseline.
+## 10. Dataset and CSV boundary
 
-Authentication contracts:
+DC-03 will add the minimum owner-isolated `Dataset` and `ValidationRule` entities plus a bounded UTF-8 CSV upload. Filenames are untrusted metadata and must not determine storage paths. Local application storage is sufficient for v1.0.
 
-```text
-POST /api/v1/auth/register
-POST /api/v1/auth/login
-POST /api/v1/auth/logout
-GET  /api/v1/auth/me
-```
+Additional formats, object storage, large-file capacity targets, complex dataset versioning, and distributed file cleanup are post-v1.0.
 
-Dataset contracts:
+## 11. Validation Engine boundary
 
-```text
-POST   /api/v1/datasets
-GET    /api/v1/datasets
-GET    /api/v1/datasets/{dataset_id}
-PATCH  /api/v1/datasets/{dataset_id}
-DELETE /api/v1/datasets/{dataset_id}
-```
+DC-04 supports exactly five rule families:
 
-Upload contract:
+- `required`;
+- `unique`;
+- `type`;
+- `range`;
+- `regex`.
 
-```text
-POST /api/v1/datasets/{dataset_id}/uploads
-Content-Type: multipart/form-data
-```
+Each result contains complete evaluated/passed/failed counts and a bounded sample of violations. Rule semantics are deterministic and testable without HTTP or infrastructure.
 
-An upload is single-use. Starting an analysis requires at least one active valid rule.
+## 12. Analysis and score boundary
 
-Analysis contract:
+DC-05 performs analysis synchronously:
 
 ```text
-POST /api/v1/datasets/{dataset_id}/analyses
--> 202 Accepted
+create analysis
+  -> load CSV
+  -> run Validation Engine
+  -> persist rule results and violations
+  -> calculate score
+  -> return persisted result
 ```
 
-Clients poll the analysis resource with GET until a terminal state. WebSocket and Server-Sent Events are outside the MVP.
+The v1.0 quality score uses one simple documented formula over applicable rule results. Weighted severity systems, asynchronous workers, leases, distributed retries, reconciliation, exactly-once claims, and ML scoring are post-v1.0.
 
-## 20. Error envelope
+## 13. Ownership
 
-Conceptual public errors use:
+Every domain resource introduced after DC-02 belongs to a `User`. ID-based lookups must make missing and out-of-ownership resources indistinguishable through the same not-found response.
 
-```json
-{
-  "code": "resource_not_found",
-  "message": "Resource not found.",
-  "details": {},
-  "trace_id": "..."
-}
-```
+Ownership is enforced at application/repository boundaries and tested through real PostgreSQL integration.
 
-`code` is stable and machine-readable, `message` is safe for public display, and `details` contains only safe structured context. API responses never expose stack traces.
+## 14. Migrations and qualification
 
-## 21. Pagination
+Relational changes use Alembic. Published migrations are not rewritten. Qualification starts from an empty disposable PostgreSQL database and verifies upgrade, schema, model drift, downgrade, and re-upgrade before integration tests.
 
-List endpoints use offset pagination with a default limit of 25, maximum limit of 100, minimum limit of 1, and `offset >= 0`. The MVP does not expose a generic query language.
+CI uses the same PostgreSQL major version and validates the tables belonging to the current roadmap phase. No schema from a future phase is created early.
 
-## 22. OpenAPI contract
+## 15. Frozen foundation
 
-FastAPI and Pydantic OpenAPI output is the transport-contract source of truth:
+The existing React shell, Redis broker, Celery worker shell, shared staging volume, and five-service Compose topology are retained as sunk-cost foundation. Their presence is not a requirement to implement frontend product flows or asynchronous analysis.
 
-```text
-Pydantic -> OpenAPI -> openapi-typescript -> TypeScript transport types
-```
+Small configuration or documentation fixes may keep the foundation executable. Product expansion on those components is outside v1.0.
 
-Transport DTOs must not be duplicated manually. A later CI workflow will detect generated-type drift; no such workflow exists at bootstrap.
+## 16. Release boundary
 
-## 23. Persistence
+DC-06 performs full migration-from-zero qualification, security and ownership review, upload/data review, secrets/log review, final documentation, smoke tests, release notes, and the `v1.0.0` release.
 
-Conceptual relational entities are:
-
-- `users`;
-- `sessions`;
-- `datasets`;
-- `validation_rules`;
-- `staged_uploads`;
-- `dataset_versions`;
-- `analyses`;
-- `analysis_attempts`;
-- `analysis_rule_snapshots`;
-- `rule_results`;
-- `violation_samples`.
-
-Planned constraints include unique normalized user email, unique session token hash, one analysis per dataset version, unique attempt number per analysis, attempt number from 1 through 3, score from 0 through 100 or null, row number at least 1, and sample index from 1 through 1,000. Foreign keys, ownership paths, state checks, terminal-result uniqueness, and timestamps must preserve the documented invariants.
-
-No migration or schema implements these entities yet.
-
-## 24. Dataset deletion
-
-The MVP hard-deletes a dataset and its retained domain history. If a `QUEUED` or `RUNNING` analysis exists, deletion returns `409 dataset_has_active_analysis`. There is no endpoint for deleting an individual Analysis. Deleting a current ValidationRule never removes historical rule snapshots.
-
-Deletion must also attempt staged-file cleanup and record pending cleanup when immediate physical deletion fails.
-
-## 25. Logging and observability
-
-Structured logs will include safe correlation identifiers such as `trace_id`, `analysis_id`, and `attempt_id` where appropriate. Logs must never include:
-
-- passwords or password hashes;
-- raw session tokens;
-- CSRF tokens;
-- `Cookie` values;
-- CSV content;
-- observed-value previews;
-- dataset rows.
-
-No OpenTelemetry requirement exists yet.
-
-## 26. Capacity validation
-
-Supporting a 5 GiB CSV is a first-release requirement, not already-proven evidence. Before the first release, execute a documented synthetic 5 GiB benchmark covering upload, staging, worker memory, processing time, database writes, cleanup, failure recovery, and relevant resource limits. This baseline does not claim that benchmark has passed.
+After release, DataCheck v1.0 is frozen.

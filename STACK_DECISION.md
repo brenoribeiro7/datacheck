@@ -1,5 +1,9 @@
 # DataCheck Stack Decision
 
+> This document records the retained foundation stack. Product-scope statements from the
+> original architecture are superseded by ROADMAP.md; React, Redis, and Celery remain frozen
+> foundation rather than mandatory v1.0 product paths.
+
 Status: Approved implementation baseline
 
 Primary track: Hybrid Architecture
@@ -81,7 +85,7 @@ The tags and repository digests were revalidated before the backend and frontend
 
 ## Rejected alternatives
 
-- An API-only product was rejected because the first release requires a web interface.
+- Removing the existing React foundation was rejected as unnecessary; product UI is deferred beyond v1.0.
 - A full-stack TypeScript implementation was rejected because Python and data processing are central to the product.
 - Pandas was not selected; Polars is the approved validation-processing engine.
 - JWT authentication was not selected for the MVP; opaque server-side sessions fit the browser-first topology.
@@ -90,4 +94,4 @@ The tags and repository digests were revalidated before the backend and frontend
 
 ## Revision triggers
 
-Revisit this decision only when supported evidence changes a material constraint, including a security or maintenance issue, a version incompatibility, a measured 5 GiB capacity failure, a move beyond the shared-filesystem topology, a third-party client requirement, or operational scale that a modular monolith cannot meet. Any revision requires an explicit decision record, compatibility validation, and lockfile update.
+Revisit this decision only when supported evidence changes a material constraint, including a security or maintenance issue, a version incompatibility, a move beyond the local-storage topology, a third-party client requirement, or operational scale that a modular monolith cannot meet. Any revision requires an explicit decision record, compatibility validation, and lockfile update.
