@@ -1,5 +1,6 @@
 import ipaddress
 import re
+from pathlib import Path
 from typing import Literal, Self
 from urllib.parse import urlsplit
 
@@ -77,6 +78,7 @@ class ApiSettings(EnvironmentSettings):
 
     database_url: SecretStr
     trusted_origins: tuple[str, ...]
+    dataset_storage_root: Path
 
     @field_validator("trusted_origins")
     @classmethod
@@ -87,6 +89,16 @@ class ApiSettings(EnvironmentSettings):
         if len(set(canonical)) != len(canonical):
             raise ValueError("trusted origins must be unique after canonicalization")
         return canonical
+
+    @field_validator("dataset_storage_root")
+    @classmethod
+    def validate_dataset_storage_root(cls, value: Path) -> Path:
+        if not value.is_absolute():
+            raise ValueError("dataset storage root must be absolute")
+        resolved = value.resolve()
+        if resolved == Path(resolved.anchor):
+            raise ValueError("dataset storage root must not be a filesystem root")
+        return resolved
 
     @model_validator(mode="after")
     def validate_api_configuration(self) -> Self:

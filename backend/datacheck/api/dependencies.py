@@ -8,10 +8,13 @@ from datacheck.api.security import (
     cookie_policy,
     parse_csrf_header,
     require_json_content_type,
+    require_multipart_content_type,
     require_trusted_origin,
 )
 from datacheck.core.settings import ApiSettings
+from datacheck.datasets.service import DatasetService
 from datacheck.identity.service import AuthenticatedContext, AuthenticationRequired, IdentityService
+from datacheck.identity.tokens import csrf_tokens_match
 
 _development_session_cookie = APIKeyCookie(
     name="datacheck_session",
@@ -38,6 +41,13 @@ def get_identity_service(request: Request) -> IdentityService:
     return cast(IdentityService, service)
 
 
+def get_dataset_service(request: Request) -> DatasetService:
+    service = getattr(request.app.state, "dataset_service", None)
+    if service is None:
+        raise RuntimeError("dataset service is unavailable")
+    return cast(DatasetService, service)
+
+
 def enforce_trusted_origin(
     request: Request,
     settings: Annotated[ApiSettings, Depends(get_api_settings)],
@@ -47,6 +57,10 @@ def enforce_trusted_origin(
 
 def enforce_json_content_type(request: Request) -> None:
     require_json_content_type(request)
+
+
+def enforce_multipart_content_type(request: Request) -> None:
+    require_multipart_content_type(request)
 
 
 def get_session_cookie(
@@ -79,3 +93,18 @@ def require_authenticated_context(
             code="authentication_required",
             message="Authentication required.",
         ) from None
+
+
+def require_authenticated_mutation(
+    context: Annotated[AuthenticatedContext, Depends(require_authenticated_context)],
+    supplied_csrf_token: Annotated[bytes | None, Depends(get_csrf_token)],
+) -> AuthenticatedContext:
+    if supplied_csrf_token is None or not csrf_tokens_match(
+        context.csrf_token, supplied_csrf_token
+    ):
+        raise ApiError(
+            status_code=403,
+            code="invalid_csrf_token",
+            message="CSRF token is invalid.",
+        )
+    return context

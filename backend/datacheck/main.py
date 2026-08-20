@@ -7,9 +7,15 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from datacheck.api.errors import register_error_handlers
-from datacheck.api.middleware import SanitizedExceptionMiddleware, TraceIdMiddleware
+from datacheck.api.middleware import (
+    DatasetUploadSizeLimitMiddleware,
+    SanitizedExceptionMiddleware,
+    TraceIdMiddleware,
+)
 from datacheck.api.v1.router import router as v1_router
 from datacheck.core.settings import ApiSettings
+from datacheck.datasets.service import DatasetService
+from datacheck.datasets.storage import LocalDatasetStorage
 from datacheck.identity.passwords import PasswordService
 from datacheck.identity.service import IdentityService
 from datacheck.infrastructure.database import (
@@ -26,12 +32,14 @@ def create_app(
     database_probe: DatabaseProbe | None = None,
     database_resources: DatabaseResources | None = None,
     identity_service: IdentityService | None = None,
+    dataset_service: DatasetService | None = None,
 ) -> FastAPI:
     """Create an isolated API instance with process-scoped infrastructure."""
     resolved_settings = settings or ApiSettings.from_environment()
     configured_probe = database_probe
     configured_resources = database_resources
     configured_identity_service = identity_service
+    configured_dataset_service = dataset_service
     active_probe: DatabaseProbe | None = None
 
     @asynccontextmanager
@@ -57,6 +65,13 @@ def create_app(
                 password_service=PasswordService(),
             )
         application.state.identity_service = active_identity_service
+        active_dataset_service = configured_dataset_service
+        if active_dataset_service is None and resources is not None:
+            active_dataset_service = DatasetService(
+                session_factory=resources.session_factory,
+                storage=LocalDatasetStorage(resolved_settings.dataset_storage_root),
+            )
+        application.state.dataset_service = active_dataset_service
 
         try:
             yield
@@ -65,6 +80,7 @@ def create_app(
             # while plain module import remains free of database connections.
             active_probe = None
             application.state.identity_service = None
+            application.state.dataset_service = None
             if owns_resources and resources is not None:
                 resources.dispose()
 
@@ -78,6 +94,7 @@ def create_app(
     register_error_handlers(application)
     application.include_router(create_operational_router(get_database_probe))
     application.include_router(v1_router)
+    application.add_middleware(DatasetUploadSizeLimitMiddleware)
     application.add_middleware(SanitizedExceptionMiddleware)
     application.add_middleware(
         CORSMiddleware,

@@ -1,6 +1,7 @@
 import uuid
 from datetime import UTC, datetime, timedelta
 from http.cookies import SimpleCookie
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -31,6 +32,7 @@ def _settings() -> ApiSettings:
         environment="test",
         database_url=SecretStr("postgresql+psycopg://127.0.0.1/datacheck"),
         trusted_origins=(_ORIGIN,),
+        dataset_storage_root=Path("/tmp/datacheck-test-datasets"),
     )
 
 

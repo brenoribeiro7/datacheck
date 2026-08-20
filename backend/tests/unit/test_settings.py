@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from pydantic import SecretStr, ValidationError
 
@@ -17,12 +19,14 @@ def test_api_settings_load_valid_environment(
         "DATACHECK_TRUSTED_ORIGINS",
         '["http://LOCALHOST:80", "https://Example.TEST:443"]',
     )
+    monkeypatch.setenv("DATACHECK_DATASET_STORAGE_ROOT", "/tmp/datacheck-test-datasets")
 
     settings = ApiSettings.from_environment()
 
     assert settings.environment == "test"
     assert settings.database_url.get_secret_value().startswith("postgresql+psycopg://")
     assert settings.trusted_origins == ("http://localhost", "https://example.test")
+    assert settings.dataset_storage_root == Path("/tmp/datacheck-test-datasets")
 
 
 def test_worker_settings_load_valid_environment(
@@ -48,6 +52,7 @@ def test_invalid_environment_is_rejected(
         "postgresql+psycopg://127.0.0.1/datacheck",
     )
     monkeypatch.setenv("DATACHECK_TRUSTED_ORIGINS", '["http://localhost:3000"]')
+    monkeypatch.setenv("DATACHECK_DATASET_STORAGE_ROOT", "/tmp/datacheck-test-datasets")
 
     with pytest.raises(ValidationError):
         ApiSettings.from_environment()
@@ -59,6 +64,7 @@ def test_database_url_is_required_for_api(
 ) -> None:
     monkeypatch.setenv("DATACHECK_ENVIRONMENT", "test")
     monkeypatch.setenv("DATACHECK_TRUSTED_ORIGINS", '["http://localhost:3000"]')
+    monkeypatch.setenv("DATACHECK_DATASET_STORAGE_ROOT", "/tmp/datacheck-test-datasets")
 
     with pytest.raises(ValidationError):
         ApiSettings.from_environment()
@@ -81,6 +87,7 @@ def test_api_rejects_a_non_psycopg_database_url(
     monkeypatch.setenv("DATACHECK_ENVIRONMENT", "test")
     monkeypatch.setenv("DATACHECK_DATABASE_URL", "postgresql://127.0.0.1/datacheck")
     monkeypatch.setenv("DATACHECK_TRUSTED_ORIGINS", '["http://localhost:3000"]')
+    monkeypatch.setenv("DATACHECK_DATASET_STORAGE_ROOT", "/tmp/datacheck-test-datasets")
 
     with pytest.raises(ValidationError):
         ApiSettings.from_environment()
@@ -106,6 +113,7 @@ def test_api_settings_require_trusted_origins(
         "DATACHECK_DATABASE_URL",
         "postgresql+psycopg://127.0.0.1/datacheck",
     )
+    monkeypatch.setenv("DATACHECK_DATASET_STORAGE_ROOT", "/tmp/datacheck-test-datasets")
 
     with pytest.raises(ValidationError):
         ApiSettings.from_environment()
@@ -132,6 +140,7 @@ def test_api_settings_reject_invalid_or_duplicate_origins(origins: tuple[str, ..
             environment="test",
             database_url=SecretStr("postgresql+psycopg://127.0.0.1/datacheck"),
             trusted_origins=origins,
+            dataset_storage_root=Path("/tmp/datacheck-test-datasets"),
         )
 
 
@@ -141,18 +150,21 @@ def test_production_requires_one_https_origin() -> None:
             environment="production",
             database_url=SecretStr("postgresql+psycopg://127.0.0.1/datacheck"),
             trusted_origins=("http://localhost",),
+            dataset_storage_root=Path("/tmp/datacheck-test-datasets"),
         )
     with pytest.raises(ValidationError):
         ApiSettings(
             environment="production",
             database_url=SecretStr("postgresql+psycopg://127.0.0.1/datacheck"),
             trusted_origins=("https://one.example.test", "https://two.example.test"),
+            dataset_storage_root=Path("/tmp/datacheck-test-datasets"),
         )
 
     settings = ApiSettings(
         environment="production",
         database_url=SecretStr("postgresql+psycopg://127.0.0.1/datacheck"),
         trusted_origins=("https://APP.EXAMPLE.TEST:443",),
+        dataset_storage_root=Path("/tmp/datacheck-test-datasets"),
     )
 
     assert settings.trusted_origins == ("https://app.example.test",)
@@ -163,6 +175,7 @@ def test_non_production_http_is_limited_to_loopback() -> None:
         environment="development",
         database_url=SecretStr("postgresql+psycopg://127.0.0.1/datacheck"),
         trusted_origins=("http://localhost:3000", "http://127.0.0.1:5173"),
+        dataset_storage_root=Path("/tmp/datacheck-test-datasets"),
     )
     assert settings.trusted_origins == (
         "http://localhost:3000",
@@ -174,9 +187,26 @@ def test_non_production_http_is_limited_to_loopback() -> None:
             environment="test",
             database_url=SecretStr("postgresql+psycopg://127.0.0.1/datacheck"),
             trusted_origins=("http://app.example.test",),
+            dataset_storage_root=Path("/tmp/datacheck-test-datasets"),
         )
 
 
 def test_settings_security_fields_remain_process_specific() -> None:
-    assert set(ApiSettings.model_fields) == {"environment", "database_url", "trusted_origins"}
+    assert set(ApiSettings.model_fields) == {
+        "environment",
+        "database_url",
+        "trusted_origins",
+        "dataset_storage_root",
+    }
     assert set(WorkerSettings.model_fields) == {"environment", "celery_broker_url"}
+
+
+@pytest.mark.parametrize("storage_root", [Path("relative/path"), Path("/")])
+def test_api_settings_require_a_bounded_absolute_storage_root(storage_root: Path) -> None:
+    with pytest.raises(ValidationError):
+        ApiSettings(
+            environment="test",
+            database_url=SecretStr("postgresql+psycopg://127.0.0.1/datacheck"),
+            trusted_origins=("http://localhost:3000",),
+            dataset_storage_root=storage_root,
+        )

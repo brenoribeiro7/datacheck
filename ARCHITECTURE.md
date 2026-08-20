@@ -28,14 +28,16 @@ React, Redis, Celery, and the worker already exist as frozen foundation. They re
 
 ## 3. Delivery state
 
-DC-00 through DC-02 are closed. DC-03 through DC-06 have not started.
+DC-00 through DC-02 are closed. DC-03 implementation is complete and is in validation/integration closure. DC-04 through DC-06 have not started.
 
 Implemented product persistence currently consists of:
 
 - `users`;
-- `sessions`.
+- `sessions`;
+- owner-scoped `datasets` with active-upload metadata;
+- dataset-scoped `validation_rules`.
 
-Future entities described below are boundaries for DC-03 through DC-05, not claims of current implementation.
+Future entities described below are boundaries for DC-04 and DC-05, not claims of current implementation.
 
 ## 4. Identity persistence
 
@@ -88,7 +90,7 @@ Production uses:
 
 Development and test use `datacheck_session` without `Secure` only on explicitly configured loopback origins. Every API environment requires a trusted-origin allowlist; wildcard credentialed origins are invalid.
 
-Authentication mutations validate an exact trusted `Origin`, with a validated `Referer` fallback, before domain work. Active-session logout additionally requires the session-bound synchronizer token in `X-CSRF-Token`. Duplicate, missing, malformed, or wrong-session tokens fail closed.
+Cookie-authenticated mutations validate an exact trusted `Origin`, with a validated `Referer` fallback, before domain work, and require the session-bound synchronizer token in `X-CSRF-Token`. Duplicate, missing, malformed, or wrong-session tokens fail closed.
 
 ## 8. Errors and sensitive data
 
@@ -102,9 +104,15 @@ Registration persists its user and first session in one transaction. Login verif
 
 PostgreSQL constraints remain the final arbiter for unique normalized email and unique session-token hash.
 
+Dataset upload and rule creation lock the same owner-scoped `datasets` row. This serializes header replacement with rule creation so a committed rule cannot target a column absent from the active CSV. Exact duplicate rules are resolved by a PostgreSQL unique constraint.
+
 ## 10. Dataset and CSV boundary
 
-DC-03 will add the minimum owner-isolated `Dataset` and `ValidationRule` entities plus a bounded UTF-8 CSV upload. Filenames are untrusted metadata and must not determine storage paths. Local application storage is sufficient for v1.0.
+DC-03 adds the minimum owner-isolated `Dataset` and `ValidationRule` entities plus one active bounded CSV upload per dataset. The CSV contract is comma-delimited strict UTF-8 with optional BOM, a 10 MiB file limit, at most 256 exact unique header columns, and uniform row width. Parsing records only byte size, SHA-256, row count, columns, upload time, and safe filename metadata; it does not infer schema or quality.
+
+Files live beneath one configured local root using generated UUID-based keys. Filenames are untrusted metadata and never determine storage paths. A candidate is written and scanned incrementally, installed by an atomic same-filesystem rename before the database update, and removed if the transaction fails. A successful reupload removes the previous file after commit. A process crash may leave an orphan file, but the database never points to a partial candidate; distributed reconciliation is intentionally outside v1.0.
+
+The dataset HTTP boundary exposes create/list/get, one multipart upload, and create/list/delete rule operations. Every lookup is owner-scoped, and missing and out-of-ownership IDs share the same public `404` response. Rule configuration is validated and persisted for the five v1.0 families but is not executed in DC-03.
 
 Additional formats, object storage, large-file capacity targets, complex dataset versioning, and distributed file cleanup are post-v1.0.
 

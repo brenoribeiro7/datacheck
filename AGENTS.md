@@ -2,7 +2,7 @@
 
 ## Purpose and current phase
 
-DataCheck is a flagship CSV data-quality application whose first release is intentionally limited to the smallest technically convincing end-to-end product. DC-00 through DC-02 are closed. DC-03 is the next phase but has not started; DC-04 through DC-06 have not started.
+DataCheck is a flagship CSV data-quality application whose first release is intentionally limited to the smallest technically convincing end-to-end product. DC-00 through DC-02 are closed. DC-03 implementation is complete and is in validation/integration closure; DC-04 through DC-06 have not started.
 
 The v1.0 roadmap ends at DC-06:
 
@@ -23,7 +23,8 @@ Do not add a DC-07+ phase or silently restore superseded first-release requireme
 - React, Redis, Celery, the worker, and the existing Compose topology are frozen foundation: do not remove, rewrite, or expand them for v1.0 unless a release-blocking defect requires a proportionate fix.
 - The v1.0 product flow is API-first. Frontend product screens, generated TypeScript clients, and browser automation are post-v1.0.
 - Analysis is synchronous in v1.0. Distributed retries, leases, reconciliation, and Celery product processing are post-v1.0.
-- CSV is the only v1.0 ingestion format. Keep limits documented and proportionate; large-file capacity claims and object storage are post-v1.0.
+- CSV is the only v1.0 ingestion format. DC-03 accepts one strict UTF-8 CSV up to 10 MiB, with at most 256 header columns, in controlled local storage; large-file capacity claims and object storage are post-v1.0.
+- DC-03 configures `required`, `unique`, `type`, `range`, and `regex` rules against known uploaded columns. It does not execute them; execution starts only in DC-04 after DC-03 is merged and formally closed.
 - Before adding functionality, require evidence that it is necessary to make the minimum product flow functional, secure, or technically convincing.
 
 ## Approved stack
@@ -47,7 +48,8 @@ Exact manifests, lockfiles, and [STACK_DECISION.md](STACK_DECISION.md) are autho
 ## Data-handling rules
 
 - Treat filenames and CSV content as untrusted input.
-- Accept only UTF-8 CSV in v1.0 and enforce the documented size limit during ingestion.
+- Accept only strict UTF-8 CSV with an optional BOM and enforce the exact 10 MiB file limit plus the bounded multipart request limit during ingestion.
+- Never derive a storage path from a submitted filename. Use only validated internal storage keys beneath the configured root.
 - Persist complete validation counts but only bounded violation samples.
 - Do not retain entire rows merely to explain one violation.
 - Avoid claims about unsupported formats, object storage, distributed processing, or large-file capacity.

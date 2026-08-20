@@ -37,7 +37,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the current boundaries and security m
 DC-00 CLOSED
 DC-01 CLOSED
 DC-02 CLOSED
-DC-03 NOT STARTED
+DC-03 IMPLEMENTATION COMPLETE — VALIDATION AND INTEGRATION CLOSURE
 DC-04 NOT STARTED
 DC-05 NOT STARTED
 DC-06 NOT STARTED
@@ -54,6 +54,10 @@ DC-02 currently provides:
 - sanitized API errors and server-generated trace IDs;
 - OpenAPI contracts for register, login, current user, and logout.
 
+DC-03 now provides owner-scoped datasets, one bounded local CSV upload per dataset,
+persisted structural metadata, and configurable validation rules. Rules are stored but
+are not executed until DC-04.
+
 ## Authentication API
 
 ```http
@@ -64,6 +68,22 @@ POST /api/v1/auth/logout
 ```
 
 Production uses the Secure, HttpOnly, SameSite=Lax `__Host-datacheck_session` cookie. Development and test use the explicit non-Secure `datacheck_session` cookie on loopback origins. Cookie-authenticated mutations require a trusted Origin or Referer and `X-CSRF-Token`.
+
+## Dataset API and CSV contract
+
+```http
+POST   /api/v1/datasets
+GET    /api/v1/datasets
+GET    /api/v1/datasets/{dataset_id}
+POST   /api/v1/datasets/{dataset_id}/upload
+POST   /api/v1/datasets/{dataset_id}/rules
+GET    /api/v1/datasets/{dataset_id}/rules
+DELETE /api/v1/datasets/{dataset_id}/rules/{rule_id}
+```
+
+Uploads accept exactly one comma-delimited `.csv` file up to 10 MiB, encoded as strict UTF-8 with an optional UTF-8 BOM. The header is required, supports at most 256 unique columns, and every row must match its width. Files are stored beneath the configured local storage root under generated UUID-based keys; the submitted filename remains untrusted metadata and never selects a path.
+
+The configurable rule types are `required`, `unique`, `type`, `range`, and `regex`. A valid CSV must be uploaded before rules can be created, and each rule targets an exact column from the active header. Reupload remains possible only when every configured target column is preserved.
 
 ## Technology foundation
 
@@ -122,6 +142,7 @@ Integration tests require an isolated disposable PostgreSQL database:
 DATACHECK_ENVIRONMENT=test \
 DATACHECK_DATABASE_URL='postgresql+psycopg://USER:PASSWORD@HOST:PORT/DATABASE' \
 DATACHECK_TRUSTED_ORIGINS='["http://localhost:3000"]' \
+DATACHECK_DATASET_STORAGE_ROOT='/tmp/datacheck-integration-datasets' \
 uv run pytest -m integration
 ```
 
