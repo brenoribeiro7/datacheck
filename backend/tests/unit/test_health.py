@@ -62,8 +62,17 @@ def test_openapi_generation_describes_the_authentication_contract() -> None:
 
     schema = application.openapi()
 
+    assert schema["info"]["title"] == "DataCheck API"
+    assert schema["info"]["version"] == "1.0.0"
     assert "/health" not in schema["paths"]
     assert "/ready" not in schema["paths"]
+    http_methods = {"get", "post", "put", "patch", "delete", "options", "head", "trace"}
+    assert (
+        sum(
+            method in http_methods for path_item in schema["paths"].values() for method in path_item
+        )
+        == 14
+    )
     assert {
         "/api/v1/auth/register",
         "/api/v1/auth/login",
