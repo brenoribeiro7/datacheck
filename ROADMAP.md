@@ -45,8 +45,8 @@ The v1.0 roadmap has seven sequential phases and ends at DC-06. No DC-07+ phase 
 
 ## DC-06 — Hardening and v1.0.0
 
-- **Status:** IN RELEASE QUALIFICATION
+- **Status:** CLOSED
 - **Objective:** Qualify and release the finished product.
 - **Scope:** Full tests, migrations from zero, CI, security/ownership/upload review, secret/log review, final documentation, OpenAPI, smoke tests, limitations, release notes, and `v1.0.0`.
 
-After DC-06 and the `v1.0.0` release, DataCheck v1.0 is frozen.
+DC-06 is closed, `v1.0.0` has been released, and DataCheck v1.0 is frozen.

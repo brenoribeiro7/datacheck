@@ -28,8 +28,8 @@ React, Redis, Celery, and the worker already exist as frozen foundation. They re
 
 ## 3. Delivery state
 
-DC-00 through DC-05 are closed. DC-06 is in final release qualification; `v1.0.0` has
-not been published.
+DC-00 through DC-06 are closed. `v1.0.0` has been published, and DataCheck v1.0
+is frozen.
 
 Implemented product persistence currently consists of:
 
@@ -193,4 +193,4 @@ Small configuration or documentation fixes may keep the foundation executable. P
 
 DC-06 performs full migration-from-zero qualification, security and ownership review, upload/data review, secrets/log review, final documentation, smoke tests, release notes, and the `v1.0.0` release.
 
-After release, DataCheck v1.0 is frozen.
+DataCheck v1.0.0 has been released, and the v1.0 product scope is frozen.
