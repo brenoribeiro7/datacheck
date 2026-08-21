@@ -45,7 +45,7 @@ The v1.0 roadmap has seven sequential phases and ends at DC-06. No DC-07+ phase 
 
 ## DC-06 — Hardening and v1.0.0
 
-- **Status:** NOT STARTED
+- **Status:** IN RELEASE QUALIFICATION
 - **Objective:** Qualify and release the finished product.
 - **Scope:** Full tests, migrations from zero, CI, security/ownership/upload review, secret/log review, final documentation, OpenAPI, smoke tests, limitations, release notes, and `v1.0.0`.
 
