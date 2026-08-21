@@ -40,7 +40,7 @@ DC-02 CLOSED
 DC-03 CLOSED
 DC-04 CLOSED
 DC-05 CLOSED
-DC-06 NOT STARTED
+DC-06 IN RELEASE QUALIFICATION
 ```
 
 DC-02 currently provides:
@@ -109,6 +109,20 @@ denominator, and a run with no applicable evaluations returns `null`. Historical
 metadata, rule definitions, complete counts, and at most 20 samples per rule remain
 frozen even after a compatible reupload or rule deletion.
 
+## v1.0 limitations
+
+- DataCheck is API-first and does not include frontend product flows.
+- Analysis is synchronous; Redis and Celery do not participate in the product flow.
+- Ingestion accepts one active strict UTF-8 CSV per Dataset, limited to 10 MiB and 256
+  columns. Previous CSV versions are not retained.
+- Files use local single-host storage; object storage, distributed retries,
+  reconciliation, and exactly-once processing are outside v1.0.
+- Validation is limited to `required`, `unique`, `type`, `range`, and `regex`. Counts are
+  complete, but only the first 20 violation samples per rule are retained.
+- The quality score is a simple unweighted ratio of passed to evaluated cells.
+- OAuth/OIDC, MFA, and RBAC are outside v1.0.
+- Docker Compose is a reference topology for local execution and qualification.
+
 ## Technology foundation
 
 - Python 3.13.15, FastAPI, Pydantic, SQLAlchemy, Alembic, and Polars;
@@ -174,6 +188,7 @@ Never point the integration suite at a development or shared database: its migra
 
 ## Documentation
 
+- [v1.0.0 release notes](RELEASE_NOTES.md)
 - [Product brief](PRODUCT_BRIEF.md)
 - [Architecture](ARCHITECTURE.md)
 - [Roadmap](ROADMAP.md)

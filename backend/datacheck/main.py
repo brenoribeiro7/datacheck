@@ -108,7 +108,7 @@ def create_app(
             raise RuntimeError("application lifespan is not active")
         return active_probe
 
-    application = FastAPI(title="DataCheck API", lifespan=lifespan)
+    application = FastAPI(title="DataCheck API", version="1.0.0", lifespan=lifespan)
     application.state.api_settings = resolved_settings
     register_error_handlers(application)
     application.include_router(create_operational_router(get_database_probe))
